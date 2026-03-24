@@ -1,12 +1,11 @@
 export type Role = 'Admin' | 'Student';
 export type Status = 'New' | 'Acknowledged' | 'Investigating' | 'Dev In-Progress' | 'Resolved' | 'Reopened';
-export type Category = 'Course Help' | 'Admin Post' | 'Announcement';
+export type Category = 'Course Help' | 'Announcement';
 
 export interface User {
   id: string;
-  name: string;
   username: string;
-  profilePicUrl: string;
+  profilePicUrl?: string;
   role: Role;
   batch?: string;
 }
@@ -26,9 +25,10 @@ export interface Post {
   dislikes: number;
   reposts: number;
   views: number;
-  isLiked?: boolean;
-  isDisliked?: boolean;
-  isReposted?: boolean;
+  likedBy?: string[];
+  dislikedBy?: string[];
+  repostedBy?: string;
+  originalPostId?: string;
 }
 
 export interface Comment {
@@ -40,8 +40,8 @@ export interface Comment {
   replyToCommentId?: string;
   likes: number;
   dislikes: number;
-  isLiked?: boolean;
-  isDisliked?: boolean;
+  likedBy?: string[];
+  dislikedBy?: string[];
 }
 
 export interface Notification {

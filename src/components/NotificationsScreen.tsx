@@ -6,7 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 interface NotificationsScreenProps {
   notifications: Notification[];
   users: Record<string, User>;
-  onNotificationClick: (postId?: string, commentId?: string) => void;
+  onNotificationClick: (id: string, postId?: string, commentId?: string) => void;
   onMarkAllRead: () => void;
 }
 
@@ -48,7 +48,7 @@ export function NotificationsScreen({ notifications, users, onNotificationClick,
           notifications.map(notification => (
             <div 
               key={notification.id} 
-              onClick={() => onNotificationClick(notification.postId, notification.commentId)}
+              onClick={() => onNotificationClick(notification.id, notification.postId, notification.commentId)}
               className={`border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-colors flex gap-3 ${!notification.read ? 'bg-slate-900/20' : ''}`}
             >
               <div className="shrink-0 pt-1">

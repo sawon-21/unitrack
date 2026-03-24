@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Loader2, Pin } from 'lucide-react';
 import { PostCard } from './PostCard';
+import { PostSkeleton } from './PostSkeleton';
 import { Post, User } from '../types';
+import { Avatar } from './Avatar';
 
 interface DashboardProps {
   posts: Post[];
   users: Record<string, User>;
+  currentUser?: User;
   isLoading: boolean;
   onPostClick: (id: string) => void;
   onOpenSubmit: () => void;
@@ -15,7 +18,7 @@ interface DashboardProps {
   onShare: (id: string) => void;
 }
 
-export function Dashboard({ posts, users, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare }: DashboardProps) {
+export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -65,9 +68,10 @@ export function Dashboard({ posts, users, isLoading, onPostClick, onOpenSubmit, 
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-          <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
-          <p>Loading posts...</p>
+        <div className="flex flex-col">
+          <PostSkeleton />
+          <PostSkeleton />
+          <PostSkeleton />
         </div>
       ) : (
         <>
@@ -84,7 +88,7 @@ export function Dashboard({ posts, users, isLoading, onPostClick, onOpenSubmit, 
                     className="min-w-[280px] max-w-[320px] snap-center bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 shrink-0 cursor-pointer hover:bg-slate-800 transition-colors shadow-lg shadow-indigo-900/20"
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <img src={users[post.userId]?.profilePicUrl} className="w-6 h-6 rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
+                      <Avatar user={users[post.userId]} username={users[post.userId]?.username} className="w-6 h-6 text-[10px]" />
                       <span className="text-sm font-semibold text-slate-200 truncate">@{users[post.userId]?.username}</span>
                     </div>
                     <h3 className="font-bold text-slate-100 line-clamp-1">{post.title}</h3>
@@ -101,6 +105,7 @@ export function Dashboard({ posts, users, isLoading, onPostClick, onOpenSubmit, 
                 key={post.id} 
                 post={post} 
                 author={users[post.userId]} 
+                currentUser={currentUser}
                 onClick={() => onPostClick(post.id)} 
                 onLike={() => onLike(post.id)}
                 onDislike={() => onDislike(post.id)}

@@ -1,25 +1,43 @@
 import React from 'react';
 import { cn } from '../utils';
+import { User } from '../types';
 
 interface AvatarProps {
-  username: string;
+  user?: User;
+  username?: string;
   className?: string;
 }
 
-export function Avatar({ username, className }: AvatarProps) {
+export function Avatar({ user, username, className }: AvatarProps) {
+  const displayUsername = user?.username || username || 'anon';
+
+  if (user?.role === 'Admin' && user.profilePicUrl) {
+    return (
+      <img 
+        src={user.profilePicUrl} 
+        alt={displayUsername} 
+        className={cn("rounded-full object-cover shrink-0", className)} 
+        referrerPolicy="no-referrer" 
+      />
+    );
+  }
+
   const colors = [
-    'bg-red-500', 'bg-orange-500', 'bg-amber-500', 'bg-green-500', 
-    'bg-emerald-500', 'bg-teal-500', 'bg-cyan-500', 'bg-blue-500', 
-    'bg-indigo-500', 'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 
-    'bg-pink-500', 'bg-rose-500'
+    '#ef4444', '#f97316', '#f59e0b', '#22c55e', 
+    '#10b981', '#14b8a6', '#06b6d4', '#3b82f6', 
+    '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', 
+    '#ec4899', '#f43f5e'
   ];
   
-  const hash = username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const hash = displayUsername.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const color = colors[hash % colors.length];
-  const initials = username.substring(0, 2).toUpperCase();
+  const initials = displayUsername.substring(0, 2).toUpperCase();
 
   return (
-    <div className={cn(`flex items-center justify-center rounded-full text-white font-bold shrink-0`, color, className)}>
+    <div 
+      className={cn(`flex items-center justify-center rounded-full text-white font-bold shrink-0`, className)}
+      style={{ backgroundColor: color }}
+    >
       {initials}
     </div>
   );

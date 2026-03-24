@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share } from 'lucide-react';
+import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User } from '../types';
 import { cn } from '../utils';
@@ -8,6 +8,7 @@ import { Avatar } from './Avatar';
 interface PostCardProps {
   post: Post;
   author?: User;
+  currentUser?: User;
   onClick: () => void;
   onLike: () => void;
   onDislike: () => void;
@@ -15,11 +16,13 @@ interface PostCardProps {
   onShare: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, author, onClick, onLike, onDislike, onRepost, onShare }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare }) => {
   const isAnonymous = post.isAnonymous;
-  const authorName = isAnonymous ? 'Anonymous User' : (author?.name || 'Unknown User');
-  const authorHandle = isAnonymous ? 'anon' : (author?.username || authorName.toLowerCase().replace(/\s+/g, ''));
-  const authorAvatar = isAnonymous ? 'https://i.pravatar.cc/150?u=anon' : (author?.profilePicUrl || 'https://i.pravatar.cc/150?u=unknown');
+  const authorHandle = isAnonymous ? 'anon' : (author?.username || 'unknown');
+  
+  const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
+  const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
+  const isReposted = currentUser ? post.reposts > 0 && post.repostedBy === currentUser.username : false;
 
   const statusColors = {
     'New': 'text-teal-400 border-teal-400/30 bg-teal-400/10',
@@ -35,18 +38,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, onClick, onLik
       onClick={onClick}
       className="border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-colors flex flex-col gap-2"
     >
-      {post.isPinned && (
+      {post.repostedBy && (
+        <div className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 mb-1 uppercase tracking-wider">
+          <Repeat2 className="w-3 h-3" /> Reposted by @{post.repostedBy}
+        </div>
+      )}
+      {post.isPinned && !post.repostedBy && (
         <div className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 uppercase tracking-wider">
           <Pin className="w-3 h-3 fill-slate-500" /> Pinned
         </div>
       )}
       <div className="flex gap-3">
-        <Avatar username={authorHandle} className="w-10 h-10 text-sm" />
+        <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-10 h-10 text-sm" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-sm truncate">
               {/* Removed display name, using only username as requested */}
               <span className="font-bold text-slate-100 truncate hover:underline">@{authorHandle}</span>
+              {!isAnonymous && author?.role === 'Admin' && (
+                <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+              )}
               <span className="text-slate-500">·</span>
               <span className="text-slate-500 shrink-0 hover:underline">
                 {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false }).replace('about ', '')}
@@ -78,23 +89,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, onClick, onLik
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onRepost(); }}
-              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", post.isReposted && "text-emerald-400")}
+              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isReposted && "text-emerald-400")}
             >
               <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><Repeat2 className="w-4 h-4" /></div>
               <span className="text-xs">{post.reposts || 0}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onLike(); }}
-              className={cn("flex items-center gap-2 hover:text-emerald-500 group transition-colors", post.isLiked && "text-emerald-500")}
+              className={cn("flex items-center gap-2 hover:text-emerald-500 group transition-colors", isLiked && "text-emerald-500")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-4 h-4", post.isLiked && "fill-emerald-500")} /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-4 h-4", isLiked && "fill-emerald-500")} /></div>
               <span className="text-xs">{post.likes || 0}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onDislike(); }}
-              className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", post.isDisliked && "text-pink-500")}
+              className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", isDisliked && "text-pink-500")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-4 h-4", post.isDisliked && "fill-pink-500")} /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-4 h-4", isDisliked && "fill-pink-500")} /></div>
               <span className="text-xs">{post.dislikes || 0}</span>
             </button>
             <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">

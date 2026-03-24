@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Send, Activity, Loader2, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Activity, Loader2, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
-import { StatusTrackerModal } from './StatusTrackerModal';
 import { Avatar } from './Avatar';
 
 interface PostDetailProps {
@@ -11,31 +10,31 @@ interface PostDetailProps {
   author?: User;
   comments: Comment[];
   users: Record<string, User>;
-  currentUser: User;
+  currentUser?: User;
   isLoading: boolean;
   highlightCommentId?: string | null;
   onBack: () => void;
   onAddComment: (text: string, replyToId?: string) => void;
-  onUpdateStatus: (status: Status) => void;
-  onTogglePin?: () => void;
   onLike: () => void;
   onDislike: () => void;
   onCommentLike: (id: string) => void;
   onCommentDislike: (id: string) => void;
   onRepost: () => void;
   onShare: () => void;
+  onSignIn: () => void;
 }
 
-export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onUpdateStatus, onTogglePin, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare }: PostDetailProps) {
+export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn }: PostDetailProps) {
   const [newComment, setNewComment] = useState('');
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isAnonymous = post.isAnonymous;
-  const authorName = isAnonymous ? 'Anonymous User' : (author?.name || 'Unknown User');
-  const authorHandle = isAnonymous ? 'anon' : (author?.username || authorName.toLowerCase().replace(/\s+/g, ''));
-  const authorAvatar = isAnonymous ? 'https://i.pravatar.cc/150?u=anon' : (author?.profilePicUrl || 'https://i.pravatar.cc/150?u=unknown');
+  const authorHandle = isAnonymous ? 'anon' : (author?.username || 'unknown');
+
+  const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
+  const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
+  const isReposted = currentUser ? post.reposts > 0 && post.repostedBy === currentUser.username : false;
 
   const statusColors = {
     'New': 'text-teal-400 border-teal-400/30 bg-teal-400/10',
@@ -81,17 +80,21 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
 
   const renderComment = (comment: Comment, isReply = false) => {
     const commentAuthor = users[comment.userId];
-    const cName = commentAuthor?.name || 'Unknown User';
-    const cHandle = commentAuthor?.username || cName.toLowerCase().replace(/\s+/g, '');
-    const cAvatar = commentAuthor?.profilePicUrl || 'https://i.pravatar.cc/150?u=unknown';
+    const cHandle = commentAuthor?.username || 'unknown';
     const replies = getReplies(comment.id);
+
+    const isCommentLiked = currentUser ? comment.likedBy?.includes(currentUser.id) : false;
+    const isCommentDisliked = currentUser ? comment.dislikedBy?.includes(currentUser.id) : false;
 
     return (
       <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3", isReply ? "mt-4" : "border-b border-slate-800 p-4")}>
-        <Avatar username={cHandle} className="w-10 h-10 text-sm" />
+        <Avatar user={commentAuthor} username={cHandle} className="w-10 h-10 text-sm" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-sm truncate">
             <span className="font-bold text-slate-100 truncate hover:underline">@{cHandle}</span>
+            {commentAuthor?.role === 'Admin' && (
+              <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+            )}
             <span className="text-slate-500">·</span>
             <span className="text-slate-500 shrink-0 hover:underline">
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: false }).replace('about ', '')}
@@ -103,23 +106,23 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
           
           <div className="flex items-center justify-between mt-3 text-slate-500 max-w-md">
             <button 
-              onClick={() => handleReplyClick(comment.id)}
+              onClick={() => currentUser ? handleReplyClick(comment.id) : onSignIn()}
               className="flex items-center gap-2 hover:text-indigo-400 group transition-colors"
             >
               <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-4 h-4" /></div>
             </button>
             <button 
-              onClick={() => onCommentLike(comment.id)}
-              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", comment.isLiked && "text-emerald-400")}
+              onClick={() => currentUser ? onCommentLike(comment.id) : onSignIn()}
+              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isCommentLiked && "text-emerald-400")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-4 h-4", comment.isLiked && "fill-emerald-500")} /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-4 h-4", isCommentLiked && "fill-emerald-500")} /></div>
               <span className="text-xs">{comment.likes || 0}</span>
             </button>
             <button 
-              onClick={() => onCommentDislike(comment.id)}
-              className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", comment.isDisliked && "text-pink-500")}
+              onClick={() => currentUser ? onCommentDislike(comment.id) : onSignIn()}
+              className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", isCommentDisliked && "text-pink-500")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-4 h-4", comment.isDisliked && "fill-pink-500")} /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-4 h-4", isCommentDisliked && "fill-pink-500")} /></div>
               <span className="text-xs">{comment.dislikes || 0}</span>
             </button>
           </div>
@@ -152,26 +155,22 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
           </button>
           <h1 className="text-xl font-bold text-slate-100">Post</h1>
         </div>
-        {currentUser.role === 'Admin' && onTogglePin && (
-          <button
-            onClick={onTogglePin}
-            className={cn(
-              "p-2 rounded-full transition-colors",
-              post.isPinned ? "text-indigo-400 hover:bg-indigo-500/10" : "text-slate-400 hover:bg-slate-900"
-            )}
-            title={post.isPinned ? "Unpin post" : "Pin post"}
-          >
-            {post.isPinned ? <PinOff className="w-5 h-5" /> : <Pin className="w-5 h-5" />}
-          </button>
-        )}
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-32">
+      <div className="flex-1 overflow-y-auto pb-32 sm:pb-40">
         <div className="p-4 border-b border-slate-800">
+          {post.repostedBy && (
+            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold mb-3 uppercase tracking-wider">
+              <Repeat2 className="w-3 h-3" /> Reposted by @{post.repostedBy}
+            </div>
+          )}
           <div className="flex items-center gap-3 mb-4">
-            <Avatar username={authorHandle} className="w-12 h-12 text-base" />
-            <div>
+            <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-12 h-12 text-base" />
+            <div className="flex items-center gap-1.5">
               <h2 className="font-bold text-slate-100 text-base">@{authorHandle}</h2>
+              {!isAnonymous && author?.role === 'Admin' && (
+                <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
+              )}
             </div>
           </div>
 
@@ -207,24 +206,24 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
               <span className="text-sm">{post.commentCount}</span>
             </button>
             <button 
-              onClick={onRepost}
-              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", post.isReposted && "text-emerald-400")}
+              onClick={currentUser ? onRepost : onSignIn}
+              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isReposted && "text-emerald-400")}
             >
               <div className="p-2 rounded-full group-hover:bg-emerald-500/10"><Repeat2 className="w-5 h-5" /></div>
               <span className="text-sm">{post.reposts || 0}</span>
             </button>
             <button 
-              onClick={onLike}
-              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", post.isLiked && "text-emerald-400")}
+              onClick={currentUser ? onLike : onSignIn}
+              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isLiked && "text-emerald-400")}
             >
-              <div className="p-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-5 h-5", post.isLiked && "fill-emerald-500")} /></div>
+              <div className="p-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-5 h-5", isLiked && "fill-emerald-500")} /></div>
               <span className="text-sm">{post.likes || 0}</span>
             </button>
             <button 
-              onClick={onDislike}
-              className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", post.isDisliked && "text-pink-500")}
+              onClick={currentUser ? onDislike : onSignIn}
+              className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", isDisliked && "text-pink-500")}
             >
-              <div className="p-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-5 h-5", post.isDisliked && "fill-pink-500")} /></div>
+              <div className="p-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-5 h-5", isDisliked && "fill-pink-500")} /></div>
               <span className="text-sm">{post.dislikes || 0}</span>
             </button>
             <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
@@ -237,14 +236,6 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
               <div className="p-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
             </button>
           </div>
-
-          <button 
-            onClick={() => setIsStatusModalOpen(true)}
-            className="w-full mt-4 flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-slate-300 py-3 rounded-full font-bold transition-colors border border-slate-800"
-          >
-            <Activity className="w-5 h-5" />
-            View Status History
-          </button>
         </div>
 
         <div className="flex flex-col">
@@ -257,51 +248,53 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-slate-800 p-3 z-20">
-        {replyingTo && (
-          <div className="flex items-center justify-between text-xs text-indigo-400 mb-2 px-2 bg-indigo-950/30 py-1.5 rounded-md">
-            <div className="flex items-center gap-1.5">
-              <Reply className="w-3 h-3" />
-              <span>Replying to @{users[comments.find(c => c.id === replyingTo)?.userId || '']?.username || 'user'}</span>
-            </div>
-            <button onClick={() => setReplyingTo(null)} className="hover:text-indigo-300 p-1 rounded-full hover:bg-indigo-900/50">
-              <X className="w-3 h-3" />
+      <div className="fixed bottom-0 sm:bottom-14 left-0 right-0 bg-black border-t border-slate-800 p-3 z-20 max-w-3xl mx-auto">
+        {currentUser ? (
+          <>
+            {replyingTo && (
+              <div className="flex items-center justify-between text-xs text-indigo-400 mb-2 px-2 bg-indigo-950/30 py-1.5 rounded-md">
+                <div className="flex items-center gap-1.5">
+                  <Reply className="w-3 h-3" />
+                  <span>Replying to @{users[comments.find(c => c.id === replyingTo)?.userId || '']?.username || 'user'}</span>
+                </div>
+                <button onClick={() => setReplyingTo(null)} className="hover:text-indigo-300 p-1 rounded-full hover:bg-indigo-900/50">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+            <form onSubmit={handleSubmitComment} className="flex items-center gap-3">
+              <Avatar user={currentUser} username={currentUser.username} className="w-8 h-8 text-xs" />
+              <div className="flex-1 relative">
+                <input 
+                  ref={inputRef}
+                  type="text" 
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder={replyingTo ? "Post your reply" : "Post your reply"} 
+                  className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-4 pr-12 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                />
+                <button 
+                  type="submit"
+                  disabled={!newComment.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <div className="flex items-center justify-between px-4 py-2">
+            <span className="text-sm text-slate-400">Sign in to join the conversation</span>
+            <button 
+              onClick={onSignIn}
+              className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-full transition-colors"
+            >
+              Sign In
             </button>
           </div>
         )}
-        <form onSubmit={handleSubmitComment} className="flex items-center gap-3">
-          <Avatar username={currentUser.username} className="w-8 h-8 text-xs" />
-          <div className="flex-1 relative">
-            <input 
-              ref={inputRef}
-              type="text" 
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder={replyingTo ? "Post your reply" : "Post your reply"} 
-              className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-4 pr-12 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-            />
-            <button 
-              type="submit"
-              disabled={!newComment.trim()}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </form>
       </div>
-
-      {isStatusModalOpen && (
-        <StatusTrackerModal 
-          currentStatus={post.status} 
-          onClose={() => setIsStatusModalOpen(false)}
-          isAdmin={currentUser.role === 'Admin'}
-          onUpdateStatus={(newStatus) => {
-            onUpdateStatus(newStatus);
-            setIsStatusModalOpen(false);
-          }}
-        />
-      )}
     </div>
   );
 }

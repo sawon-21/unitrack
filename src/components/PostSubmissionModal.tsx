@@ -21,7 +21,7 @@ export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="flex justify-between items-center p-5 border-b border-slate-800">
           <h2 className="text-xl font-bold text-slate-100">Create New Post</h2>
@@ -39,7 +39,6 @@ export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalPr
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
             >
               <option value="Course Help">Course Help</option>
-              <option value="Admin Post">Admin Post</option>
               <option value="Announcement">Announcement</option>
             </select>
           </div>

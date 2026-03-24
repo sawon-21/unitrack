@@ -1,8 +1,5 @@
 import React from 'react';
-import { Settings } from 'lucide-react';
 import { cn } from '../utils';
-import { currentUser } from '../data';
-import { Avatar } from './Avatar';
 
 interface HeaderProps {
   activeTab: 'all' | 'my';
@@ -12,18 +9,14 @@ interface HeaderProps {
 export function Header({ activeTab, onTabChange }: HeaderProps) {
   return (
     <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 flex flex-col">
-      <div className="px-4 py-3 flex items-center justify-between">
-        <Avatar username={currentUser.username} className="w-8 h-8 text-xs" />
-        <h1 className="text-xl font-bold text-slate-100">Home</h1>
-        <button className="p-2 hover:bg-slate-900 rounded-full transition-colors text-slate-300">
-          <Settings className="w-5 h-5" />
-        </button>
+      <div className="px-4 py-2 flex items-center justify-center">
+        <h1 className="text-lg font-bold text-slate-100">UniTrack</h1>
       </div>
       <div className="flex w-full">
         <button
           onClick={() => onTabChange('all')}
           className={cn(
-            "flex-1 py-3 text-sm font-bold hover:bg-slate-900 transition-colors relative",
+            "flex-1 py-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
             activeTab === 'all' ? "text-slate-100" : "text-slate-500"
           )}
         >
@@ -33,7 +26,7 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
         <button
           onClick={() => onTabChange('my')}
           className={cn(
-            "flex-1 py-3 text-sm font-bold hover:bg-slate-900 transition-colors relative",
+            "flex-1 py-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
             activeTab === 'my' ? "text-slate-100" : "text-slate-500"
           )}
         >
