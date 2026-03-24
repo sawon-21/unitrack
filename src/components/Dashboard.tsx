@@ -1,0 +1,133 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Loader2, Pin } from 'lucide-react';
+import { PostCard } from './PostCard';
+import { Post, User } from '../types';
+
+interface DashboardProps {
+  posts: Post[];
+  users: Record<string, User>;
+  isLoading: boolean;
+  onPostClick: (id: string) => void;
+  onOpenSubmit: () => void;
+  onLike: (id: string) => void;
+  onDislike: (id: string) => void;
+  onRepost: (id: string) => void;
+  onShare: (id: string) => void;
+}
+
+export function Dashboard({ posts, users, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare }: DashboardProps) {
+  const [displayCount, setDisplayCount] = useState(5);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
+  const pinnedPosts = posts.filter(p => p.isPinned);
+  const regularPosts = posts.filter(p => !p.isPinned);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting) {
+          setDisplayCount(prev => Math.min(prev + 5, regularPosts.length));
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+    
+    return () => observer.disconnect();
+  }, [regularPosts.length]);
+
+  const stats = {
+    total: posts.length,
+    resolved: posts.filter(p => p.status === 'Resolved').length,
+    pending: posts.filter(p => p.status !== 'Resolved').length,
+  };
+
+  return (
+    <div className="pb-20 animate-in fade-in duration-200">
+      <div className="px-4 py-3 border-b border-slate-800">
+        <div className="flex justify-between items-center bg-slate-900 rounded-2xl p-3">
+          <div className="text-center flex-1 border-r border-slate-800">
+            <div className="text-lg font-bold text-slate-100">{stats.total}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Total</div>
+          </div>
+          <div className="text-center flex-1 border-r border-slate-800">
+            <div className="text-lg font-bold text-emerald-500">{stats.resolved}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Resolved</div>
+          </div>
+          <div className="text-center flex-1">
+            <div className="text-lg font-bold text-orange-500">{stats.pending}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Pending</div>
+          </div>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+          <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
+          <p>Loading posts...</p>
+        </div>
+      ) : (
+        <>
+          {pinnedPosts.length > 0 && (
+            <div className="border-b border-slate-800 py-4 bg-indigo-950/10">
+              <h2 className="text-sm font-bold text-indigo-400 mb-3 px-4 flex items-center gap-2 uppercase tracking-wider">
+                <Pin className="w-4 h-4 fill-indigo-400" /> Pinned Announcements
+              </h2>
+              <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {pinnedPosts.map(post => (
+                  <div 
+                    key={post.id} 
+                    onClick={() => onPostClick(post.id)} 
+                    className="min-w-[280px] max-w-[320px] snap-center bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 shrink-0 cursor-pointer hover:bg-slate-800 transition-colors shadow-lg shadow-indigo-900/20"
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <img src={users[post.userId]?.profilePicUrl} className="w-6 h-6 rounded-full object-cover" alt="" referrerPolicy="no-referrer" />
+                      <span className="text-sm font-semibold text-slate-200 truncate">@{users[post.userId]?.username}</span>
+                    </div>
+                    <h3 className="font-bold text-slate-100 line-clamp-1">{post.title}</h3>
+                    <p className="text-sm text-slate-400 line-clamp-2 mt-1">{post.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <div className="flex flex-col">
+            {regularPosts.slice(0, displayCount).map(post => (
+              <PostCard 
+                key={post.id} 
+                post={post} 
+                author={users[post.userId]} 
+                onClick={() => onPostClick(post.id)} 
+                onLike={() => onLike(post.id)}
+                onDislike={() => onDislike(post.id)}
+                onRepost={() => onRepost(post.id)}
+                onShare={() => onShare(post.id)}
+              />
+            ))}
+            {posts.length === 0 && (
+              <div className="text-center text-slate-500 py-10">
+                No posts found.
+              </div>
+            )}
+            {displayCount < regularPosts.length && (
+              <div ref={observerTarget} className="py-8 flex justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      <button 
+        onClick={onOpenSubmit}
+        className="fixed bottom-20 right-6 w-14 h-14 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-transform hover:scale-105 active:scale-95 z-40"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+    </div>
+  );
+}
