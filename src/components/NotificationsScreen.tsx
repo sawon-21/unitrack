@@ -49,7 +49,7 @@ export function NotificationsScreen({ notifications, users, onNotificationClick,
             <div 
               key={notification.id} 
               onClick={() => onNotificationClick(notification.id, notification.postId, notification.commentId)}
-              className={`border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-colors flex gap-3 ${!notification.read ? 'bg-slate-900/20' : ''}`}
+              className={`border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-colors flex gap-3 ${!notification.read ? 'bg-indigo-900/20 border-l-4 border-l-indigo-500' : 'border-l-4 border-l-transparent'}`}
             >
               <div className="shrink-0 pt-1">
                 {getIcon(notification.type)}

@@ -42,10 +42,11 @@ export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, o
     return () => observer.disconnect();
   }, [regularPosts.length]);
 
+  const uniquePosts = posts.filter(p => !p.originalPostId);
   const stats = {
-    total: posts.length,
-    resolved: posts.filter(p => p.status === 'Resolved').length,
-    pending: posts.filter(p => p.status !== 'Resolved').length,
+    total: uniquePosts.length,
+    resolved: uniquePosts.filter(p => p.status === 'Resolved').length,
+    pending: uniquePosts.filter(p => p.status !== 'Resolved').length,
   };
 
   return (

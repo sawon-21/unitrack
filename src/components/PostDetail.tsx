@@ -30,7 +30,7 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isAnonymous = post.isAnonymous;
-  const authorHandle = isAnonymous ? 'anon' : (author?.username || 'unknown');
+  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username || 'unknown');
 
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
@@ -78,7 +78,7 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
   const parentComments = comments.filter(c => !c.replyToCommentId);
   const getReplies = (parentId: string) => comments.filter(c => c.replyToCommentId === parentId);
 
-  const renderComment = (comment: Comment, isReply = false) => {
+  const renderComment = (comment: Comment, isReply = false, depth = 0) => {
     const commentAuthor = users[comment.userId];
     const cHandle = commentAuthor?.username || 'unknown';
     const replies = getReplies(comment.id);
@@ -87,20 +87,20 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
     const isCommentDisliked = currentUser ? comment.dislikedBy?.includes(currentUser.id) : false;
 
     return (
-      <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3", isReply ? "mt-4" : "border-b border-slate-800 p-4")}>
-        <Avatar user={commentAuthor} username={cHandle} className="w-10 h-10 text-sm" />
+      <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3 transition-colors duration-1000", isReply ? "mt-4 -mx-2 px-2 py-1 rounded-lg" : "border-b border-slate-800 p-4")}>
+        <Avatar user={commentAuthor} username={cHandle} className="w-10 h-10 text-base" />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 text-sm truncate">
+          <div className="flex items-center gap-1.5 text-base truncate">
             <span className="font-bold text-slate-100 truncate hover:underline">@{cHandle}</span>
             {commentAuthor?.role === 'Admin' && (
-              <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+              <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
             )}
             <span className="text-slate-500">·</span>
             <span className="text-slate-500 shrink-0 hover:underline">
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: false }).replace('about ', '')}
             </span>
           </div>
-          <p className="text-slate-100 mt-1 text-sm leading-normal whitespace-pre-wrap">
+          <p className="text-slate-100 mt-1 text-base leading-normal whitespace-pre-wrap">
             {comment.text}
           </p>
           
@@ -109,27 +109,27 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
               onClick={() => currentUser ? handleReplyClick(comment.id) : onSignIn()}
               className="flex items-center gap-2 hover:text-indigo-400 group transition-colors"
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-4 h-4" /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-5 h-5" /></div>
             </button>
             <button 
               onClick={() => currentUser ? onCommentLike(comment.id) : onSignIn()}
               className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isCommentLiked && "text-emerald-400")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-4 h-4", isCommentLiked && "fill-emerald-500")} /></div>
-              <span className="text-xs">{comment.likes || 0}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-5 h-5", isCommentLiked && "fill-emerald-500")} /></div>
+              <span className="text-sm">{comment.likes || 0}</span>
             </button>
             <button 
               onClick={() => currentUser ? onCommentDislike(comment.id) : onSignIn()}
               className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", isCommentDisliked && "text-pink-500")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-4 h-4", isCommentDisliked && "fill-pink-500")} /></div>
-              <span className="text-xs">{comment.dislikes || 0}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-5 h-5", isCommentDisliked && "fill-pink-500")} /></div>
+              <span className="text-sm">{comment.dislikes || 0}</span>
             </button>
           </div>
           
           {replies.length > 0 && (
-            <div className="mt-2 border-l-2 border-slate-800 pl-4">
-              {replies.map(reply => renderComment(reply, true))}
+            <div className={cn("mt-2 border-slate-800", depth < 3 ? "border-l-2 pl-4" : "pl-1")}>
+              {replies.map(reply => renderComment(reply, true, depth + 1))}
             </div>
           )}
         </div>
@@ -174,8 +174,8 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
             </div>
           </div>
 
-          <h1 className="text-xl font-bold text-slate-100 mb-2 leading-snug">{post.title}</h1>
-          <p className="text-slate-100 text-base leading-relaxed mb-4 whitespace-pre-wrap">
+          <h1 className="text-2xl font-bold text-slate-100 mb-2 leading-snug">{post.title}</h1>
+          <p className="text-slate-100 text-lg leading-relaxed mb-4 whitespace-pre-wrap">
             {post.description}
           </p>
 

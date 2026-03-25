@@ -8,6 +8,7 @@ export interface User {
   profilePicUrl?: string;
   role: Role;
   batch?: string;
+  usernameChanged?: boolean;
 }
 
 export interface Post {
@@ -25,6 +26,7 @@ export interface Post {
   dislikes: number;
   reposts: number;
   views: number;
+  viewedBy?: string[];
   likedBy?: string[];
   dislikedBy?: string[];
   repostedBy?: string;

@@ -61,6 +61,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     if (!query.trim()) return 0;
     
     if (isUserSearch) {
+      if (post.isAnonymous) return 0;
       const author = users[post.userId];
       if (!author) return 0;
       if (author.username.toLowerCase() === userQuery) return 100;
@@ -77,7 +78,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     if (post.title.toLowerCase().includes(q)) score += 50;
     if (post.description.toLowerCase().includes(q)) score += 30;
     if (post.category.toLowerCase().includes(q)) score += 20;
-    if (author && author.username.toLowerCase().includes(q)) score += 40;
+    if (!post.isAnonymous && author && author.username.toLowerCase().includes(q)) score += 40;
 
     // Fuzzy matches
     if (fuzzyMatch(post.title, q)) score += 10;

@@ -83,14 +83,16 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidPost(request.resource.data);
-      allow update: if isAuthenticated() && (
-        // Owner can update their own post
-        (isOwner(resource.data.userId) && isValidPost(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
-        // Anyone can increment likes/dislikes/reposts/views/commentCount
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'isLiked', 'isDisliked', 'isReposted'])) ||
-        // Admin can update status
-        isAdmin()
-      );
+      allow update: if 
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'viewedBy'])) ||
+        (isAuthenticated() && (
+          // Owner can update their own post
+          (isOwner(resource.data.userId) && isValidPost(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
+          // Anyone can increment likes/dislikes/reposts/views/commentCount
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy'])) ||
+          // Admin can update status
+          isAdmin()
+        ));
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
@@ -99,7 +101,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidComment(request.resource.data);
       allow update: if isAuthenticated() && (
         (isOwner(resource.data.userId) && isValidComment(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'isLiked', 'isDisliked']))
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'likedBy', 'dislikedBy']))
       );
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }

@@ -18,7 +18,7 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare }) => {
   const isAnonymous = post.isAnonymous;
-  const authorHandle = isAnonymous ? 'anon' : (author?.username || 'unknown');
+  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username || 'unknown');
   
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
@@ -36,7 +36,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
   return (
     <div 
       onClick={onClick}
-      className="border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-colors flex flex-col gap-2"
+      className="border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex flex-col gap-2"
     >
       {post.repostedBy && (
         <div className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 mb-1 uppercase tracking-wider">
@@ -52,11 +52,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
         <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-10 h-10 text-sm" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-sm truncate">
+            <div className="flex items-center gap-1.5 text-base truncate">
               {/* Removed display name, using only username as requested */}
               <span className="font-bold text-slate-100 truncate hover:underline">@{authorHandle}</span>
               {!isAnonymous && author?.role === 'Admin' && (
-                <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+                <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
               )}
               <span className="text-slate-500">·</span>
               <span className="text-slate-500 shrink-0 hover:underline">
@@ -65,11 +65,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             </div>
           </div>
           
-          <h2 className="font-bold text-slate-100 mt-0.5 text-base leading-snug">
+          <h2 className="font-bold text-slate-100 mt-0.5 text-lg leading-snug">
             {post.title}
           </h2>
           
-          <p className="text-slate-300 mt-1 text-sm leading-normal line-clamp-3">
+          <p className="text-slate-300 mt-1 text-base leading-normal line-clamp-3">
             {post.description}
           </p>
 
@@ -84,39 +84,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
 
           <div className="flex items-center justify-between mt-3 text-slate-500 max-w-md">
             <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-4 h-4" /></div>
-              <span className="text-xs">{post.commentCount}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-5 h-5" /></div>
+              <span className="text-sm">{post.commentCount}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onRepost(); }}
               className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isReposted && "text-emerald-400")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><Repeat2 className="w-4 h-4" /></div>
-              <span className="text-xs">{post.reposts || 0}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><Repeat2 className="w-5 h-5" /></div>
+              <span className="text-sm">{post.reposts || 0}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onLike(); }}
               className={cn("flex items-center gap-2 hover:text-emerald-500 group transition-colors", isLiked && "text-emerald-500")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-4 h-4", isLiked && "fill-emerald-500")} /></div>
-              <span className="text-xs">{post.likes || 0}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><ThumbsUp className={cn("w-5 h-5", isLiked && "fill-emerald-500")} /></div>
+              <span className="text-sm">{post.likes || 0}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onDislike(); }}
               className={cn("flex items-center gap-2 hover:text-pink-500 group transition-colors", isDisliked && "text-pink-500")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-4 h-4", isDisliked && "fill-pink-500")} /></div>
-              <span className="text-xs">{post.dislikes || 0}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-5 h-5", isDisliked && "fill-pink-500")} /></div>
+              <span className="text-sm">{post.dislikes || 0}</span>
             </button>
             <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><BarChart2 className="w-4 h-4" /></div>
-              <span className="text-xs">{post.views || 0}</span>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><BarChart2 className="w-5 h-5" /></div>
+              <span className="text-sm">{post.views || 0}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onShare(); }}
               className="flex items-center gap-2 hover:text-indigo-400 group transition-colors"
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-4 h-4" /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
             </button>
           </div>
         </div>

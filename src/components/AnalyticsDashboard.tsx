@@ -18,14 +18,21 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
   const userPosts = posts.filter(p => users[p.userId]?.role !== 'Admin');
 
   // Calculate top 20 posts based on score
-  // Score = likes + dislikes + reposts * 2 + commentCount * 2 + views * 0.1
+  // Top post 1st check how many repost, then reach/view, then react and comment
   const sortedPosts = [...userPosts].sort((a, b) => {
-    const scoreA = (a.likes || 0) + (a.dislikes || 0) + ((a.reposts || 0) * 2) + ((a.commentCount || 0) * 2) + ((a.views || 0) * 0.1);
-    const scoreB = (b.likes || 0) + (b.dislikes || 0) + ((b.reposts || 0) * 2) + ((b.commentCount || 0) * 2) + ((b.views || 0) * 0.1);
-    return scoreB - scoreA;
+    const repostsDiff = (b.reposts || 0) - (a.reposts || 0);
+    if (repostsDiff !== 0) return repostsDiff;
+    
+    const viewsDiff = (b.views || 0) - (a.views || 0);
+    if (viewsDiff !== 0) return viewsDiff;
+    
+    const reactA = (a.likes || 0) + (a.dislikes || 0) + (a.commentCount || 0);
+    const reactB = (b.likes || 0) + (b.dislikes || 0) + (b.commentCount || 0);
+    return reactB - reactA;
   }).slice(0, 20);
 
   const totalViews = userPosts.reduce((acc, p) => acc + (p.views || 0), 0);
+  const totalReach = userPosts.reduce((acc, p) => acc + (p.viewedBy?.length || 0), 0);
   const totalInteractions = userPosts.reduce((acc, p) => acc + (p.likes || 0) + (p.dislikes || 0) + (p.reposts || 0) + (p.commentCount || 0), 0);
 
   return (
@@ -41,9 +48,13 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
         </div>
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
           <div className="text-2xl font-bold text-emerald-400">{totalViews}</div>
+          <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">Total Views</div>
+        </div>
+        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
+          <div className="text-2xl font-bold text-cyan-400">{totalReach}</div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">Total Reach</div>
         </div>
-        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 col-span-2">
+        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
           <div className="text-2xl font-bold text-pink-400">{totalInteractions}</div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">Total Interactions</div>
         </div>

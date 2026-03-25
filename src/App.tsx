@@ -37,6 +37,25 @@ export default function App() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#post-')) {
+        const postId = hash.replace('#post-', '');
+        setSelectedPostId(postId);
+        setCurrentScreen('detail');
+      } else {
+        setCurrentScreen('dashboard');
+        setSelectedPostId(null);
+        setHighlightCommentId(null);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  useEffect(() => {
     if (!auth) {
       setIsAuthReady(true);
       setIsLoading(false);
@@ -53,7 +72,8 @@ export default function App() {
           userData = {
             id: user.uid,
             username: user.email?.split('@')[0] || `user_${user.uid.slice(0, 5)}`,
-            role: 'Student'
+            role: 'Student',
+            usernameChanged: false
           };
           await setDoc(userRef, userData);
         } else {
@@ -154,18 +174,20 @@ export default function App() {
     if (!currentUser || !db || !selectedPostId) return;
     
     const newCommentRef = doc(collection(db, 'comments'));
-    const newComment: Comment = {
+    const newComment: any = {
       id: newCommentRef.id,
       postId: selectedPostId,
       userId: currentUser.id,
       text,
       createdAt: new Date().toISOString(),
-      replyToCommentId,
       likes: 0,
       dislikes: 0
     };
+    if (replyToCommentId) {
+      newComment.replyToCommentId = replyToCommentId;
+    }
     
-    await setDoc(newCommentRef, newComment);
+    await setDoc(newCommentRef, newComment as Comment);
     
     const post = posts.find(p => p.id === selectedPostId);
     if (!post) return;
@@ -314,11 +336,45 @@ export default function App() {
     }
   };
 
+  const handlePostClick = async (id: string) => {
+    setSelectedPostId(id);
+    setCurrentScreen('detail');
+    window.location.hash = `post-${id}`;
+    
+    if (!db) return;
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
+    
+    // Increment views
+    const actualOriginalId = post.originalPostId || post.id;
+    const postRef = doc(db, 'posts', actualOriginalId);
+    
+    if (currentUser) {
+      const hasViewed = post.viewedBy?.includes(currentUser.id);
+      if (!hasViewed) {
+        await updateDoc(postRef, { 
+          views: increment(1),
+          viewedBy: arrayUnion(currentUser.id)
+        });
+      }
+    } else {
+      // For unauthenticated users, just increment views (might be spammy but simple)
+      await updateDoc(postRef, { views: increment(1) });
+    }
+  };
+
   const handleShare = (id: string) => {
-    const url = `${window.location.origin}/post/${id}`;
-    navigator.clipboard.writeText(url).then(() => {
-      console.log('Link copied to clipboard:', url);
-    });
+    const url = `${window.location.origin}/#post-${id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Check out this post',
+        url: url
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Link copied to clipboard!');
+      });
+    }
   };
 
   const displayedPosts = activeTab === 'my' && currentUser
@@ -339,6 +395,7 @@ export default function App() {
       setSelectedPostId(postId);
       setHighlightCommentId(commentId || null);
       setCurrentScreen('detail');
+      window.location.hash = `post-${postId}`;
     }
   };
 
@@ -368,7 +425,7 @@ export default function App() {
             users={users} 
             currentUser={currentUser || undefined}
             isLoading={isLoading}
-            onPostClick={(id) => { setSelectedPostId(id); setCurrentScreen('detail'); }} 
+            onPostClick={handlePostClick} 
             onOpenSubmit={() => {
               if (!currentUser) handleSignIn();
               else setIsSubmitModalOpen(true);
@@ -385,7 +442,7 @@ export default function App() {
             posts={posts} 
             users={users} 
             currentUser={currentUser || undefined}
-            onPostClick={(id) => { setSelectedPostId(id); setCurrentScreen('detail'); }} 
+            onPostClick={handlePostClick} 
             onLike={(id) => handleLike(id, false)}
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
@@ -398,7 +455,7 @@ export default function App() {
             posts={posts} 
             users={users} 
             currentUser={currentUser || undefined}
-            onPostClick={(id) => { setSelectedPostId(id); setCurrentScreen('detail'); }} 
+            onPostClick={handlePostClick} 
             onLike={(id) => handleLike(id, false)}
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
@@ -418,10 +475,11 @@ export default function App() {
         {currentScreen === 'profile' && currentUser && (
           <ProfileScreen 
             currentUser={currentUser}
+            users={users}
             onUpdateProfile={async (updatedUser) => {
               if (!db) return;
               const userRef = doc(db, 'users', updatedUser.id);
-              await updateDoc(userRef, { username: updatedUser.username });
+              await updateDoc(userRef, { username: updatedUser.username, usernameChanged: true });
               setCurrentUser(updatedUser);
             }}
             onLogout={logOut}
@@ -451,7 +509,12 @@ export default function App() {
             currentUser={currentUser || undefined}
             isLoading={isLoading}
             highlightCommentId={highlightCommentId}
-            onBack={() => { setCurrentScreen('dashboard'); setSelectedPostId(null); setHighlightCommentId(null); }} 
+            onBack={() => { 
+              setCurrentScreen('dashboard'); 
+              setSelectedPostId(null); 
+              setHighlightCommentId(null); 
+              history.pushState('', document.title, window.location.pathname + window.location.search);
+            }} 
             onAddComment={handleAddComment}
             onLike={() => handleLike(selectedPost.id, false)}
             onDislike={() => handleDislike(selectedPost.id, false)}

@@ -1,20 +1,54 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { Avatar } from './Avatar';
-import { Settings, LogOut, Edit3, BadgeCheck } from 'lucide-react';
+import { Settings, LogOut, Edit3, BadgeCheck, AlertTriangle } from 'lucide-react';
 
 interface ProfileScreenProps {
   currentUser: User;
+  users: Record<string, User>;
   onUpdateProfile: (user: User) => void;
   onLogout?: () => void;
 }
 
-export function ProfileScreen({ currentUser, onUpdateProfile, onLogout }: ProfileScreenProps) {
+export function ProfileScreen({ currentUser, users, onUpdateProfile, onLogout }: ProfileScreenProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState(currentUser.username);
+  const [error, setError] = useState('');
 
   const handleSave = () => {
-    onUpdateProfile({ ...currentUser, username });
+    setError('');
+    const trimmedUsername = username.trim().toLowerCase();
+    
+    if (!trimmedUsername) {
+      setError('Username cannot be empty');
+      return;
+    }
+    
+    if (trimmedUsername.length < 3) {
+      setError('Username must be at least 3 characters');
+      return;
+    }
+
+    if (!/^[a-z0-9_]+$/.test(trimmedUsername)) {
+      setError('Username can only contain lowercase letters, numbers, and underscores');
+      return;
+    }
+
+    if (trimmedUsername === currentUser.username.toLowerCase()) {
+      setIsEditing(false);
+      return;
+    }
+
+    const isTaken = Object.values(users).some(
+      u => u.username.toLowerCase() === trimmedUsername && u.id !== currentUser.id
+    );
+
+    if (isTaken) {
+      setError('Username is already taken');
+      return;
+    }
+
+    onUpdateProfile({ ...currentUser, username: trimmedUsername, usernameChanged: true });
     setIsEditing(false);
   };
 
@@ -37,10 +71,19 @@ export function ProfileScreen({ currentUser, onUpdateProfile, onLogout }: Profil
                 onChange={e => setUsername(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-indigo-500"
               />
+              {error && <p className="text-red-400 text-xs mt-1">{error}</p>}
+              <div className="flex items-start gap-2 mt-2 text-yellow-500/80 bg-yellow-500/10 p-2 rounded text-xs">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <p>You can only change your username once. Choose carefully!</p>
+              </div>
             </div>
             <div className="flex gap-2 pt-2">
               <button 
-                onClick={() => setIsEditing(false)}
+                onClick={() => {
+                  setIsEditing(false);
+                  setUsername(currentUser.username);
+                  setError('');
+                }}
                 className="flex-1 py-2 rounded-lg font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 transition-colors"
               >
                 Cancel
@@ -71,12 +114,14 @@ export function ProfileScreen({ currentUser, onUpdateProfile, onLogout }: Profil
                 </span>
               )}
             </div>
-            <button 
-              onClick={() => setIsEditing(true)}
-              className="mt-6 flex items-center gap-2 px-6 py-2 rounded-full font-bold text-slate-100 bg-slate-800 hover:bg-slate-700 transition-colors border border-slate-700"
-            >
-              <Edit3 className="w-4 h-4" /> Edit Profile
-            </button>
+            {!currentUser.usernameChanged && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="mt-6 flex items-center gap-2 px-6 py-2 rounded-full font-bold text-slate-100 bg-slate-800 hover:bg-slate-700 transition-colors border border-slate-700"
+              >
+                <Edit3 className="w-4 h-4" /> Edit Profile
+              </button>
+            )}
           </>
         )}
       </div>
