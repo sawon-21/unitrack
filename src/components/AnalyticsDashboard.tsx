@@ -11,9 +11,10 @@ interface AnalyticsDashboardProps {
   onDislike: (id: string) => void;
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
-export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onDelete }: AnalyticsDashboardProps) {
   // Filter out admin posts
   const userPosts = posts.filter(p => users[p.userId]?.role !== 'Admin');
 
@@ -80,6 +81,7 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
                 onDislike={() => onDislike(post.id)}
                 onRepost={() => onRepost(post.id)}
                 onShare={() => onShare(post.id)}
+                onDelete={() => onDelete(post.id)}
               />
             </div>
           </div>

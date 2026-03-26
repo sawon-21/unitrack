@@ -1,17 +1,17 @@
 import React from 'react';
 import { Bell, Heart, MessageSquare, Pin, TrendingUp, Megaphone, CheckCircle2 } from 'lucide-react';
-import { Notification, User } from '../types';
+import { AppNotification, User } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 
 interface NotificationsScreenProps {
-  notifications: Notification[];
+  notifications: AppNotification[];
   users: Record<string, User>;
   onNotificationClick: (id: string, postId?: string, commentId?: string) => void;
   onMarkAllRead: () => void;
 }
 
 export function NotificationsScreen({ notifications, users, onNotificationClick, onMarkAllRead }: NotificationsScreenProps) {
-  const getIcon = (type: Notification['type']) => {
+  const getIcon = (type: AppNotification['type']) => {
     switch (type) {
       case 'reaction': return <Heart className="w-6 h-6 text-pink-500 fill-pink-500" />;
       case 'comment': return <MessageSquare className="w-6 h-6 text-indigo-400 fill-indigo-400" />;

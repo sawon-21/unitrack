@@ -13,7 +13,9 @@ import { PostSubmissionModal } from './components/PostSubmissionModal';
 import { SearchScreen } from './components/SearchScreen';
 import { NotificationsScreen } from './components/NotificationsScreen';
 import { ProfileScreen } from './components/ProfileScreen';
-import { Post, Comment, Category, Notification, User } from './types';
+import { ConfirmModal } from './components/ConfirmModal';
+import { UserListModal } from './components/UserListModal';
+import { Post, Comment, Category, AppNotification, User } from './types';
 import { cn } from './utils';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -26,15 +28,81 @@ export default function App() {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [isLoading, setIsLoading] = useState(true);
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [users, setUsers] = useState<Record<string, User>>({});
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
+  const [repostersList, setRepostersList] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setShowInstallPrompt(false);
+      }
+    }
+  };
+
+  const handleRepostersClick = (userIds: string[]) => {
+    setRepostersList(userIds);
+  };
+
+  const handleDeletePost = async () => {
+    if (!postToDelete || !db) return;
+    try {
+      await deleteDoc(doc(db, 'posts', postToDelete));
+      // Also delete comments
+      const postComments = comments.filter(c => c.postId === postToDelete);
+      for (const comment of postComments) {
+        await deleteDoc(doc(db, 'comments', comment.id));
+      }
+      setPostToDelete(null);
+      if (selectedPostId === postToDelete) {
+        setSelectedPostId(null);
+        setCurrentScreen('dashboard');
+        window.location.hash = '';
+      }
+    } catch (error) {
+      console.error("Error deleting post", error);
+    }
+  };
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -92,11 +160,26 @@ export default function App() {
   useEffect(() => {
     if (!db) return;
 
-    const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+    const postsQuery = query(collection(db, 'posts'));
     const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
-      const postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+      let postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
+      postsData.sort((a, b) => {
+        const timeA = new Date(a.lastRepostedAt || a.createdAt).getTime();
+        const timeB = new Date(b.lastRepostedAt || b.createdAt).getTime();
+        return timeB - timeA;
+      });
       setPosts(postsData);
       setIsLoading(false);
+
+      // Save to localStorage as requested
+      try {
+        const latest3 = postsData.slice(0, 3);
+        const top10 = [...postsData].sort((a, b) => b.views - a.views).slice(0, 10);
+        localStorage.setItem('latest3Posts', JSON.stringify(latest3));
+        localStorage.setItem('top10Posts', JSON.stringify(top10));
+      } catch (e) {
+        console.error("Error saving to localStorage", e);
+      }
     });
 
     const commentsQuery = query(collection(db, 'comments'), orderBy('createdAt', 'asc'));
@@ -126,6 +209,12 @@ export default function App() {
       setNotifications([]);
       return;
     }
+    
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const notifQuery = query(
       collection(db, 'notifications'),
       where('userId', '==', currentUser.id),
@@ -133,7 +222,23 @@ export default function App() {
     );
     const unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
       const notifsData = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+        .map(doc => ({ id: doc.id, ...doc.data() } as AppNotification));
+      
+      // Check for new notifications to show browser alert
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === 'added') {
+          const notif = change.doc.data() as AppNotification;
+          // Only show if it's recent (within last 10 seconds) to avoid spam on load
+          const isRecent = notif.createdAt && (Date.now() - new Date(notif.createdAt).getTime() < 10000);
+          if (isRecent && 'Notification' in window && Notification.permission === 'granted' && !notif.read) {
+            new Notification('UniTrack', {
+              body: notif.message,
+              icon: '/icon-192x192.png'
+            });
+          }
+        }
+      });
+
       setNotifications(notifsData);
     });
     return () => unsubscribeNotifs();
@@ -307,32 +412,23 @@ export default function App() {
   const handleRepost = async (id: string) => {
     if (!currentUser || !db) return handleSignIn();
 
-    const originalPost = posts.find(p => p.id === id);
-    if (!originalPost) return;
+    const postRef = doc(db, 'posts', id);
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
 
-    const actualOriginalId = originalPost.originalPostId || originalPost.id;
-    const basePost = posts.find(p => p.id === actualOriginalId) || originalPost;
+    const hasReposted = post.repostedBy?.includes(currentUser.username);
 
-    const existingRepost = posts.find(p => p.originalPostId === actualOriginalId && p.repostedBy === currentUser.username);
-
-    if (existingRepost) {
-      // Remove repost
-      await deleteDoc(doc(db, 'posts', existingRepost.id));
-      const postRef = doc(db, 'posts', actualOriginalId);
-      await updateDoc(postRef, { reposts: increment(-1) });
+    if (hasReposted) {
+      await updateDoc(postRef, { 
+        reposts: increment(-1),
+        repostedBy: arrayRemove(currentUser.username)
+      });
     } else {
-      // Add repost
-      const newRepostRef = doc(collection(db, 'posts'));
-      const repost: Post = {
-        ...basePost,
-        id: newRepostRef.id,
-        originalPostId: actualOriginalId,
-        repostedBy: currentUser.username,
-        createdAt: new Date().toISOString()
-      };
-      await setDoc(newRepostRef, repost);
-      const postRef = doc(db, 'posts', actualOriginalId);
-      await updateDoc(postRef, { reposts: increment(1) });
+      await updateDoc(postRef, { 
+        reposts: increment(1),
+        repostedBy: arrayUnion(currentUser.username),
+        lastRepostedAt: new Date().toISOString()
+      });
     }
   };
 
@@ -358,8 +454,13 @@ export default function App() {
         });
       }
     } else {
-      // For unauthenticated users, just increment views (might be spammy but simple)
-      await updateDoc(postRef, { views: increment(1) });
+      // For unauthenticated users, check localStorage
+      const viewedPosts = JSON.parse(localStorage.getItem('viewedPosts') || '[]');
+      if (!viewedPosts.includes(actualOriginalId)) {
+        viewedPosts.push(actualOriginalId);
+        localStorage.setItem('viewedPosts', JSON.stringify(viewedPosts));
+        await updateDoc(postRef, { views: increment(1) });
+      }
     }
   };
 
@@ -378,7 +479,12 @@ export default function App() {
   };
 
   const displayedPosts = activeTab === 'my' && currentUser
-    ? posts.filter(p => p.userId === currentUser.id || comments.some(c => c.postId === p.id && c.userId === currentUser.id)) 
+    ? posts.filter(p => 
+        p.userId === currentUser.id || 
+        comments.some(c => c.postId === p.id && c.userId === currentUser.id) ||
+        p.likedBy?.includes(currentUser.id) ||
+        p.dislikedBy?.includes(currentUser.id)
+      ) 
     : posts;
 
   const selectedPost = posts.find(p => p.id === selectedPostId);
@@ -414,6 +520,35 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-slate-100 font-sans selection:bg-indigo-500 selection:text-white pb-14">
+      {isOffline && (
+        <div className="bg-red-500 text-white text-center py-1 text-sm font-bold sticky top-0 z-50">
+          You are offline. Some features may not be available.
+        </div>
+      )}
+
+      {showInstallPrompt && (
+        <div className="fixed bottom-16 left-4 right-4 bg-indigo-600 text-white p-4 rounded-xl shadow-2xl z-50 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold">Install UniTrack</h3>
+            <p className="text-sm opacity-90">Add to your home screen for a better experience.</p>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowInstallPrompt(false)}
+              className="px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 rounded-lg transition-colors"
+            >
+              Later
+            </button>
+            <button 
+              onClick={handleInstallClick}
+              className="px-3 py-1.5 text-sm font-bold bg-white text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors shadow-sm"
+            >
+              Install
+            </button>
+          </div>
+        </div>
+      )}
+
       {currentScreen === 'dashboard' && (
         <Header activeTab={activeTab} onTabChange={setActiveTab} />
       )}
@@ -434,6 +569,8 @@ export default function App() {
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
             onShare={handleShare}
+            onDelete={(id) => setPostToDelete(id)}
+            onRepostersClick={handleRepostersClick}
           />
         )}
         
@@ -447,6 +584,7 @@ export default function App() {
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
             onShare={handleShare}
+            onDelete={(id) => setPostToDelete(id)}
           />
         )}
 
@@ -460,6 +598,7 @@ export default function App() {
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
             onShare={handleShare}
+            onDelete={(id) => setPostToDelete(id)}
           />
         )}
 
@@ -482,7 +621,7 @@ export default function App() {
               await updateDoc(userRef, { username: updatedUser.username, usernameChanged: true });
               setCurrentUser(updatedUser);
             }}
-            onLogout={logOut}
+            onLogout={() => setShowLogoutConfirm(true)}
           />
         )}
 
@@ -523,6 +662,8 @@ export default function App() {
             onRepost={() => handleRepost(selectedPost.id)}
             onShare={() => handleShare(selectedPost.id)}
             onSignIn={handleSignIn}
+            onDelete={() => setPostToDelete(selectedPost.id)}
+            onRepostersClick={() => selectedPost.repostedBy && setRepostersList(selectedPost.repostedBy)}
           />
         )}
       </main>
@@ -531,6 +672,35 @@ export default function App() {
         <PostSubmissionModal 
           onClose={() => setIsSubmitModalOpen(false)} 
           onSubmit={handleCreatePost} 
+        />
+      )}
+
+      {showLogoutConfirm && (
+        <ConfirmModal
+          title="Log Out"
+          message="Are you sure you want to log out?"
+          onConfirm={() => {
+            logOut();
+            setShowLogoutConfirm(false);
+          }}
+          onCancel={() => setShowLogoutConfirm(false)}
+        />
+      )}
+
+      {postToDelete && (
+        <ConfirmModal
+          title="Delete Post"
+          message="Are you sure you want to delete this post? This action cannot be undone."
+          onConfirm={handleDeletePost}
+          onCancel={() => setPostToDelete(null)}
+        />
+      )}
+
+      {repostersList && (
+        <UserListModal
+          title="Reposted by"
+          users={repostersList.map(id => users[id]).filter(Boolean)}
+          onClose={() => setRepostersList(null)}
         />
       )}
 

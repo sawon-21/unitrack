@@ -9,14 +9,14 @@ interface HeaderProps {
 export function Header({ activeTab, onTabChange }: HeaderProps) {
   return (
     <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 flex flex-col">
-      <div className="px-4 py-2 flex items-center justify-center">
+      <div className="px-4 pt-2 pb-1 flex items-center justify-center">
         <h1 className="text-lg font-bold text-slate-100">UniTrack</h1>
       </div>
       <div className="flex w-full">
         <button
           onClick={() => onTabChange('all')}
           className={cn(
-            "flex-1 py-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
+            "flex-1 pt-1 pb-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
             activeTab === 'all' ? "text-slate-100" : "text-slate-500"
           )}
         >
@@ -26,7 +26,7 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
         <button
           onClick={() => onTabChange('my')}
           className={cn(
-            "flex-1 py-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
+            "flex-1 pt-1 pb-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
             activeTab === 'my' ? "text-slate-100" : "text-slate-500"
           )}
         >

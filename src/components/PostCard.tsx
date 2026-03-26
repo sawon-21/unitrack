@@ -1,9 +1,10 @@
 import React from 'react';
-import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck } from 'lucide-react';
+import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User } from '../types';
 import { cn } from '../utils';
 import { Avatar } from './Avatar';
+import { motion } from 'framer-motion';
 
 interface PostCardProps {
   post: Post;
@@ -14,15 +15,17 @@ interface PostCardProps {
   onDislike: () => void;
   onRepost: () => void;
   onShare: () => void;
+  onDelete?: () => void;
+  onRepostersClick?: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onDelete, onRepostersClick }) => {
   const isAnonymous = post.isAnonymous;
   const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username || 'unknown');
   
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
-  const isReposted = currentUser ? post.reposts > 0 && post.repostedBy === currentUser.username : false;
+  const isReposted = currentUser ? post.reposts > 0 && post.repostedBy?.includes(currentUser.username) : false;
 
   const statusColors = {
     'New': 'text-teal-400 border-teal-400/30 bg-teal-400/10',
@@ -34,13 +37,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
   };
 
   return (
-    <div 
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
       onClick={onClick}
       className="border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex flex-col gap-2"
     >
-      {post.repostedBy && (
-        <div className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 mb-1 uppercase tracking-wider">
-          <Repeat2 className="w-3 h-3" /> Reposted by @{post.repostedBy}
+      {post.repostedBy && post.repostedBy.length > 0 && (
+        <div 
+          className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 mb-1 uppercase tracking-wider cursor-pointer hover:text-indigo-400 transition-colors w-fit"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onRepostersClick) onRepostersClick();
+          }}
+        >
+          <Repeat2 className="w-3 h-3" /> Reposted by {
+            post.repostedBy.length === 1 ? `@${post.repostedBy[0]}` :
+            post.repostedBy.length === 2 ? `@${post.repostedBy[0]} and @${post.repostedBy[1]}` :
+            `@${post.repostedBy[0]}, @${post.repostedBy[1]} and ${post.repostedBy.length - 2} others`
+          }
         </div>
       )}
       {post.isPinned && !post.repostedBy && (
@@ -118,9 +134,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             >
               <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
             </button>
+            {onDelete && currentUser && (currentUser.id === post.userId || currentUser.role === 'Admin') && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                className="flex items-center gap-2 hover:text-red-400 group transition-colors ml-auto"
+              >
+                <div className="p-2 -m-2 rounded-full group-hover:bg-red-500/10"><Trash2 className="w-5 h-5" /></div>
+              </button>
+            )}
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

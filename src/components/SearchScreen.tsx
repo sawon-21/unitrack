@@ -13,6 +13,7 @@ interface SearchScreenProps {
   onDislike: (id: string) => void;
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 // Simple synonyms dictionary
@@ -37,7 +38,7 @@ const fuzzyMatch = (str: string, query: string) => {
   return j === q.length;
 };
 
-export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare }: SearchScreenProps) {
+export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onDelete }: SearchScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,6 +94,13 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
           if (post.description.toLowerCase().includes(syn)) score += 10;
         }
       }
+    }
+
+    // Engagement metrics boost (only if there's a base score)
+    if (score > 0) {
+      const engagementScore = (post.likes || 0) * 2 + (post.reposts || 0) * 5 + (post.commentCount || 0) * 3 + Math.floor((post.views || 0) / 10);
+      // Cap the engagement boost to prevent it from completely overriding relevance
+      score += Math.min(engagementScore, 50);
     }
 
     return score;
@@ -180,6 +188,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
               onDislike={() => onDislike(post.id)}
               onRepost={() => onRepost(post.id)}
               onShare={() => onShare(post.id)}
+              onDelete={() => onDelete(post.id)}
             />
           ))
         ) : (

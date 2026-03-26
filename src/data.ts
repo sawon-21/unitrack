@@ -1,4 +1,4 @@
-import { User, Post, Comment, Notification } from './types';
+import { User, Post, Comment, AppNotification } from './types';
 
 export const currentUser: User = {
   id: 'admin1',

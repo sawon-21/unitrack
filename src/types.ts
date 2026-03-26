@@ -29,8 +29,9 @@ export interface Post {
   viewedBy?: string[];
   likedBy?: string[];
   dislikedBy?: string[];
-  repostedBy?: string;
+  repostedBy?: string[];
   originalPostId?: string;
+  lastRepostedAt?: string;
 }
 
 export interface Comment {
@@ -46,7 +47,7 @@ export interface Comment {
   dislikedBy?: string[];
 }
 
-export interface Notification {
+export interface AppNotification {
   id: string;
   userId: string;
   type: 'pin' | 'announcement' | 'reaction' | 'comment' | 'trending';

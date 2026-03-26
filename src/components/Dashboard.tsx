@@ -16,9 +16,11 @@ interface DashboardProps {
   onDislike: (id: string) => void;
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
+  onDelete: (id: string) => void;
+  onRepostersClick: (userIds: string[]) => void;
 }
 
-export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare }: DashboardProps) {
+export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onDelete, onRepostersClick }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -112,6 +114,8 @@ export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, o
                 onDislike={() => onDislike(post.id)}
                 onRepost={() => onRepost(post.id)}
                 onShare={() => onShare(post.id)}
+                onDelete={() => onDelete(post.id)}
+                onRepostersClick={() => post.repostedBy && onRepostersClick(post.repostedBy)}
               />
             ))}
             {posts.length === 0 && (

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Send, Activity, Loader2, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Activity, Loader2, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
@@ -22,9 +22,11 @@ interface PostDetailProps {
   onRepost: () => void;
   onShare: () => void;
   onSignIn: () => void;
+  onDelete?: () => void;
+  onRepostersClick?: () => void;
 }
 
-export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn }: PostDetailProps) {
+export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onDelete, onRepostersClick }: PostDetailProps) {
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,7 +36,7 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
 
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
-  const isReposted = currentUser ? post.reposts > 0 && post.repostedBy === currentUser.username : false;
+  const isReposted = currentUser ? post.reposts > 0 && post.repostedBy?.includes(currentUser.username) : false;
 
   const statusColors = {
     'New': 'text-teal-400 border-teal-400/30 bg-teal-400/10',
@@ -159,9 +161,16 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
 
       <div className="flex-1 overflow-y-auto pb-32 sm:pb-40">
         <div className="p-4 border-b border-slate-800">
-          {post.repostedBy && (
-            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold mb-3 uppercase tracking-wider">
-              <Repeat2 className="w-3 h-3" /> Reposted by @{post.repostedBy}
+          {post.repostedBy && post.repostedBy.length > 0 && (
+            <div 
+              className="flex items-center gap-2 text-slate-500 text-xs font-bold mb-3 uppercase tracking-wider cursor-pointer hover:text-indigo-400 transition-colors w-fit"
+              onClick={onRepostersClick}
+            >
+              <Repeat2 className="w-3 h-3" /> Reposted by {
+                post.repostedBy.length === 1 ? `@${post.repostedBy[0]}` :
+                post.repostedBy.length === 2 ? `@${post.repostedBy[0]} and @${post.repostedBy[1]}` :
+                `@${post.repostedBy[0]}, @${post.repostedBy[1]} and ${post.repostedBy.length - 2} others`
+              }
             </div>
           )}
           <div className="flex items-center gap-3 mb-4">
@@ -235,6 +244,14 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
             >
               <div className="p-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
             </button>
+            {onDelete && currentUser && (currentUser.id === post.userId || currentUser.role === 'Admin') && (
+              <button 
+                onClick={onDelete}
+                className="flex items-center gap-2 hover:text-red-400 group transition-colors ml-auto"
+              >
+                <div className="p-2 rounded-full group-hover:bg-red-500/10"><Trash2 className="w-5 h-5" /></div>
+              </button>
+            )}
           </div>
         </div>
 
