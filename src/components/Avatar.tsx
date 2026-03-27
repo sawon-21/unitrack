@@ -9,7 +9,7 @@ interface AvatarProps {
 }
 
 export function Avatar({ user, username, className }: AvatarProps) {
-  const displayUsername = user?.username || username || 'anon';
+  const displayUsername = (user?.username || username || 'anon').toLowerCase();
 
   if (user?.role === 'Admin' && user.profilePicUrl) {
     return (

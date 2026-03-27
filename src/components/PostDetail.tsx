@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Send, Activity, Loader2, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Activity, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
 import { Avatar } from './Avatar';
+import { PostSkeleton } from './PostSkeleton';
 
 interface PostDetailProps {
   post: Post;
@@ -22,17 +23,16 @@ interface PostDetailProps {
   onRepost: () => void;
   onShare: () => void;
   onSignIn: () => void;
-  onDelete?: () => void;
   onRepostersClick?: () => void;
 }
 
-export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onDelete, onRepostersClick }: PostDetailProps) {
+export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick }: PostDetailProps) {
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isAnonymous = post.isAnonymous;
-  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username || 'unknown');
+  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
 
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
@@ -141,9 +141,18 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 text-slate-500">
-        <Loader2 className="w-8 h-8 animate-spin mb-4 text-indigo-500" />
-        <p>Loading details...</p>
+      <div className="flex flex-col h-screen bg-black">
+        <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center gap-6">
+          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-900 rounded-full transition-colors text-slate-100">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-bold text-slate-100">Post</h1>
+        </header>
+        <div className="p-4">
+          <PostSkeleton />
+          <PostSkeleton />
+          <PostSkeleton />
+        </div>
       </div>
     );
   }
@@ -187,6 +196,17 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
           <p className="text-slate-100 text-lg leading-relaxed mb-4 whitespace-pre-wrap">
             {post.description}
           </p>
+
+          {post.imageUrl && (
+            <div className="mb-4 rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+              <img 
+                src={post.imageUrl} 
+                alt="Post attachment" 
+                className="w-full max-h-[500px] object-contain"
+                loading="lazy"
+              />
+            </div>
+          )}
 
           <div className="flex items-center gap-2 mb-4">
             <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
@@ -244,14 +264,6 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
             >
               <div className="p-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
             </button>
-            {onDelete && currentUser && (currentUser.id === post.userId || currentUser.role === 'Admin') && (
-              <button 
-                onClick={onDelete}
-                className="flex items-center gap-2 hover:text-red-400 group transition-colors ml-auto"
-              >
-                <div className="p-2 rounded-full group-hover:bg-red-500/10"><Trash2 className="w-5 h-5" /></div>
-              </button>
-            )}
           </div>
         </div>
 

@@ -89,7 +89,7 @@ service cloud.firestore {
           // Owner can update their own post
           (isOwner(resource.data.userId) && isValidPost(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
           // Anyone can increment likes/dislikes/reposts/views/commentCount
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy'])) ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy', 'lastRepostedAt'])) ||
           // Admin can update status
           isAdmin()
         ));

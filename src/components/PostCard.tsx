@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck, Trash2 } from 'lucide-react';
+import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User } from '../types';
 import { cn } from '../utils';
@@ -15,13 +15,12 @@ interface PostCardProps {
   onDislike: () => void;
   onRepost: () => void;
   onShare: () => void;
-  onDelete?: () => void;
   onRepostersClick?: () => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onDelete, onRepostersClick }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onRepostersClick }) => {
   const isAnonymous = post.isAnonymous;
-  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username || 'unknown');
+  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
   
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
@@ -89,7 +88,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             {post.description}
           </p>
 
-          <div className="flex items-center gap-2 mt-2">
+          {post.imageUrl && (
+            <div className="mt-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+              <img 
+                src={post.imageUrl} 
+                alt="Post attachment" 
+                className="w-full max-h-96 object-cover"
+                loading="lazy"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 mt-3">
             <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
               {post.status}
             </span>
@@ -134,14 +144,6 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             >
               <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
             </button>
-            {onDelete && currentUser && (currentUser.id === post.userId || currentUser.role === 'Admin') && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                className="flex items-center gap-2 hover:text-red-400 group transition-colors ml-auto"
-              >
-                <div className="p-2 -m-2 rounded-full group-hover:bg-red-500/10"><Trash2 className="w-5 h-5" /></div>
-              </button>
-            )}
           </div>
         </div>
       </div>

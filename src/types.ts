@@ -32,6 +32,7 @@ export interface Post {
   repostedBy?: string[];
   originalPostId?: string;
   lastRepostedAt?: string;
+  imageUrl?: string;
 }
 
 export interface Comment {

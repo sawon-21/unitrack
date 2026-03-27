@@ -13,7 +13,7 @@ interface SearchScreenProps {
   onDislike: (id: string) => void;
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
-  onDelete: (id: string) => void;
+  onRepostersClick: (usernames: string[]) => void;
 }
 
 // Simple synonyms dictionary
@@ -38,7 +38,7 @@ const fuzzyMatch = (str: string, query: string) => {
   return j === q.length;
 };
 
-export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onDelete }: SearchScreenProps) {
+export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick }: SearchScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,7 +62,12 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     if (!query.trim()) return 0;
     
     if (isUserSearch) {
-      if (post.isAnonymous) return 0;
+      if (post.isAnonymous) {
+        const anonHandle = `anon_${post.id.substring(0, 6)}`;
+        if (anonHandle === userQuery) return 100;
+        if (anonHandle.includes(userQuery)) return 50;
+        return 0;
+      }
       const author = users[post.userId];
       if (!author) return 0;
       if (author.username.toLowerCase() === userQuery) return 100;
@@ -129,6 +134,10 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const trendingPosts = [...posts]
+    .sort((a, b) => (b.likes + b.reposts * 2 + b.commentCount * 3 + Math.floor(b.views / 10)) - (a.likes + a.reposts * 2 + a.commentCount * 3 + Math.floor(a.views / 10)))
+    .slice(0, 10);
+
   return (
     <div className="pb-20 animate-in fade-in duration-200">
       <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3">
@@ -171,10 +180,31 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
 
       <div className="flex flex-col">
         {!searchQuery.trim() ? (
-          <div className="text-center text-slate-500 py-20 px-4">
-            <Search className="w-12 h-12 mx-auto mb-4 text-slate-700" />
-            <h2 className="text-xl font-bold text-slate-300 mb-2">Search for issues</h2>
-            <p>Find problems, announcements, and discussions.</p>
+          <div className="py-6 px-4">
+            <h2 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
+              <span className="text-indigo-500">#</span> Trending
+            </h2>
+            <div className="space-y-3">
+              {trendingPosts.map((post, index) => (
+                <div 
+                  key={post.id}
+                  onClick={() => onPostClick(post.id)}
+                  className="flex items-start gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors"
+                >
+                  <span className="text-2xl font-black text-slate-700 w-6 text-center">{index + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-200 truncate">{post.title}</h3>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {post.likes} likes</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> {post.commentCount} comments</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {trendingPosts.length === 0 && (
+                <p className="text-slate-500 text-center py-8">No trending posts yet.</p>
+              )}
+            </div>
           </div>
         ) : filteredPosts.length > 0 ? (
           filteredPosts.map(post => (
@@ -188,7 +218,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
               onDislike={() => onDislike(post.id)}
               onRepost={() => onRepost(post.id)}
               onShare={() => onShare(post.id)}
-              onDelete={() => onDelete(post.id)}
+              onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
             />
           ))
         ) : (

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { X, EyeOff } from 'lucide-react';
+import { X, EyeOff, Image as ImageIcon } from 'lucide-react';
 import { Category } from '../types';
 
 interface PostSubmissionModalProps {
   onClose: () => void;
-  onSubmit: (title: string, description: string, category: Category, isAnonymous: boolean) => void;
+  onSubmit: (title: string, description: string, category: Category, isAnonymous: boolean, imageUrl?: string) => void;
 }
 
 export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalProps) {
@@ -12,11 +12,12 @@ export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalPr
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<Category>('Course Help');
   const [isAnonymous, setIsAnonymous] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) return;
-    onSubmit(title, description, category, isAnonymous);
+    onSubmit(title, description, category, isAnonymous, imageUrl.trim() || undefined);
     onClose();
   };
 
@@ -30,7 +31,7 @@ export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalPr
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        <form onSubmit={handleSubmit} className="p-5 space-y-5 max-h-[80vh] overflow-y-auto">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Category</label>
             <select 
@@ -65,6 +66,34 @@ export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalPr
               rows={4}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" /> Image URL (Optional)
+            </label>
+            <input 
+              type="url" 
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://example.com/image.jpg"
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+            />
+            {imageUrl && (
+              <div className="mt-3 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+                <img 
+                  src={imageUrl} 
+                  alt="Preview" 
+                  className="w-full h-40 object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                  onLoad={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'block';
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between p-4 bg-slate-950 rounded-lg border border-slate-800">

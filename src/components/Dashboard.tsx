@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Loader2, Pin } from 'lucide-react';
+import { Plus, Pin } from 'lucide-react';
 import { PostCard } from './PostCard';
 import { PostSkeleton } from './PostSkeleton';
 import { Post, User } from '../types';
@@ -16,11 +16,10 @@ interface DashboardProps {
   onDislike: (id: string) => void;
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
-  onDelete: (id: string) => void;
-  onRepostersClick: (userIds: string[]) => void;
+  onRepostersClick: (usernames: string[]) => void;
 }
 
-export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onDelete, onRepostersClick }: DashboardProps) {
+export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onRepostersClick }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -114,7 +113,6 @@ export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, o
                 onDislike={() => onDislike(post.id)}
                 onRepost={() => onRepost(post.id)}
                 onShare={() => onShare(post.id)}
-                onDelete={() => onDelete(post.id)}
                 onRepostersClick={() => post.repostedBy && onRepostersClick(post.repostedBy)}
               />
             ))}
@@ -124,8 +122,8 @@ export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, o
               </div>
             )}
             {displayCount < regularPosts.length && (
-              <div ref={observerTarget} className="py-8 flex justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+              <div ref={observerTarget} className="py-8">
+                <PostSkeleton />
               </div>
             )}
           </div>

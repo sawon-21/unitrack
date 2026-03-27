@@ -18,8 +18,10 @@ import { UserListModal } from './components/UserListModal';
 import { Post, Comment, Category, AppNotification, User } from './types';
 import { cn } from './utils';
 import { auth, db, signInWithGoogle, logOut } from './firebase';
+import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 
 type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail';
 
@@ -32,7 +34,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [isLoading, setIsLoading] = useState(true);
 
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(() => {
+    try {
+      const cached = localStorage.getItem('cached_posts');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [comments, setComments] = useState<Comment[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [users, setUsers] = useState<Record<string, User>>({});
@@ -41,7 +50,6 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
-  const [postToDelete, setPostToDelete] = useState<string | null>(null);
   const [repostersList, setRepostersList] = useState<string[] | null>(null);
 
   useEffect(() => {
@@ -69,28 +77,8 @@ export default function App() {
     }
   };
 
-  const handleRepostersClick = (userIds: string[]) => {
-    setRepostersList(userIds);
-  };
-
-  const handleDeletePost = async () => {
-    if (!postToDelete || !db) return;
-    try {
-      await deleteDoc(doc(db, 'posts', postToDelete));
-      // Also delete comments
-      const postComments = comments.filter(c => c.postId === postToDelete);
-      for (const comment of postComments) {
-        await deleteDoc(doc(db, 'comments', comment.id));
-      }
-      setPostToDelete(null);
-      if (selectedPostId === postToDelete) {
-        setSelectedPostId(null);
-        setCurrentScreen('dashboard');
-        window.location.hash = '';
-      }
-    } catch (error) {
-      console.error("Error deleting post", error);
-    }
+  const handleRepostersClick = (usernames: string[]) => {
+    setRepostersList(usernames);
   };
 
   useEffect(() => {
@@ -133,21 +121,29 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userRef = doc(db!, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        let userData: User;
-        if (!userSnap.exists()) {
-          userData = {
-            id: user.uid,
-            username: user.email?.split('@')[0] || `user_${user.uid.slice(0, 5)}`,
-            role: 'Student',
-            usernameChanged: false
-          };
-          await setDoc(userRef, userData);
-        } else {
-          userData = userSnap.data() as User;
+        try {
+          const userSnap = await getDoc(userRef);
+          
+          let userData: User;
+          if (!userSnap.exists()) {
+            userData = {
+              id: user.uid,
+              username: user.email?.split('@')[0] || `user_${user.uid.slice(0, 5)}`,
+              role: 'Student',
+              usernameChanged: false
+            };
+            try {
+              await setDoc(userRef, userData);
+            } catch (error) {
+              handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
+            }
+          } else {
+            userData = userSnap.data() as User;
+          }
+          setCurrentUser(userData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
         }
-        setCurrentUser(userData);
       } else {
         setCurrentUser(null);
       }
@@ -173,19 +169,21 @@ export default function App() {
 
       // Save to localStorage as requested
       try {
-        const latest3 = postsData.slice(0, 3);
-        const top10 = [...postsData].sort((a, b) => b.views - a.views).slice(0, 10);
-        localStorage.setItem('latest3Posts', JSON.stringify(latest3));
-        localStorage.setItem('top10Posts', JSON.stringify(top10));
+        const cachedPosts = postsData.slice(0, 20);
+        localStorage.setItem('cached_posts', JSON.stringify(cachedPosts));
       } catch (e) {
         console.error("Error saving to localStorage", e);
       }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'posts');
     });
 
     const commentsQuery = query(collection(db, 'comments'), orderBy('createdAt', 'asc'));
     const unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
       const commentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
       setComments(commentsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'comments');
     });
 
     const usersQuery = collection(db, 'users');
@@ -195,6 +193,8 @@ export default function App() {
         usersData[doc.id] = { id: doc.id, ...doc.data() } as User;
       });
       setUsers(usersData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     return () => {
@@ -240,6 +240,8 @@ export default function App() {
       });
 
       setNotifications(notifsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
     return () => unsubscribeNotifs();
   }, [currentUser]);
@@ -253,12 +255,54 @@ export default function App() {
     }
   };
 
-  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean) => {
-    if (!currentUser || !db) return;
+  const syncOfflineActions = async () => {
+    const actions = offlineService.getActions();
+    if (actions.length === 0) return;
     
-    const newPostRef = doc(collection(db, 'posts'));
+    for (const action of actions) {
+      try {
+        if (action.type === 'post') {
+          const postRef = doc(collection(db!, 'posts'), action.payload.id);
+          try {
+            await setDoc(postRef, action.payload);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, `posts/${action.payload.id}`);
+          }
+        } else if (action.type === 'comment') {
+          const commentRef = doc(collection(db!, 'comments'), action.payload.id);
+          try {
+            await setDoc(commentRef, action.payload);
+            const actualOriginalId = action.payload.originalPostId || action.payload.postId;
+            const postRef = doc(db!, 'posts', actualOriginalId);
+            await updateDoc(postRef, { commentCount: increment(1) });
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, `comments/${action.payload.id}`);
+          }
+        } else if (action.type === 'like') {
+          await handleLike(action.payload.id, action.payload.isComment);
+        } else if (action.type === 'dislike') {
+          await handleDislike(action.payload.id, action.payload.isComment);
+        } else if (action.type === 'repost') {
+          await handleRepost(action.payload.id);
+        }
+      } catch (e) {
+        console.error("Failed to sync action", action, e);
+      }
+    }
+    offlineService.clearActions();
+  };
+
+  useEffect(() => {
+    if (!isOffline) {
+      syncOfflineActions();
+    }
+  }, [isOffline]);
+
+  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrl?: string) => {
+    if (!currentUser) return;
+    
     const newPost: Post = {
-      id: newPostRef.id,
+      id: Math.random().toString(36).substring(7),
       title,
       description,
       category,
@@ -270,9 +314,22 @@ export default function App() {
       likes: 0,
       dislikes: 0,
       reposts: 0,
-      views: 0
+      views: 0,
+      ...(imageUrl && { imageUrl })
     };
-    await setDoc(newPostRef, newPost);
+
+    if (isOffline || !db) {
+      offlineService.addAction({ type: 'post', payload: newPost });
+      setPosts(prev => [newPost, ...prev]);
+      return;
+    }
+    
+    const newPostRef = doc(collection(db, 'posts'));
+    try {
+      await setDoc(newPostRef, newPost);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `posts/${newPostRef.id}`);
+    }
   };
 
   const handleAddComment = async (text: string, replyToCommentId?: string) => {
@@ -291,33 +348,49 @@ export default function App() {
     if (replyToCommentId) {
       newComment.replyToCommentId = replyToCommentId;
     }
+
+    if (isOffline) {
+      offlineService.addAction({ type: 'comment', payload: newComment });
+      setComments(prev => [...prev, newComment as Comment]);
+      return;
+    }
     
-    await setDoc(newCommentRef, newComment as Comment);
-    
-    const post = posts.find(p => p.id === selectedPostId);
-    if (!post) return;
-    
-    const actualOriginalId = post.originalPostId || post.id;
-    const postRef = doc(db, 'posts', actualOriginalId);
-    await updateDoc(postRef, { commentCount: increment(1) });
-    
-    if (post.userId !== currentUser.id) {
-      const notifRef = doc(collection(db, 'notifications'));
-      await setDoc(notifRef, {
-        id: notifRef.id,
-        userId: post.userId,
-        type: 'comment',
-        message: `${currentUser.username} commented on your post`,
-        postId: selectedPostId,
-        read: false,
-        createdAt: new Date().toISOString()
-      });
+    try {
+      await setDoc(newCommentRef, newComment as Comment);
+      
+      const post = posts.find(p => p.id === selectedPostId);
+      if (!post) return;
+      
+      const actualOriginalId = post.originalPostId || post.id;
+      const postRef = doc(db, 'posts', actualOriginalId);
+      await updateDoc(postRef, { commentCount: increment(1) });
+      
+      if (post.userId !== currentUser.id) {
+        const notifRef = doc(collection(db, 'notifications'));
+        await setDoc(notifRef, {
+          id: notifRef.id,
+          userId: post.userId,
+          type: 'comment',
+          message: `${currentUser.username} commented on your post`,
+          postId: selectedPostId,
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `comments/${newCommentRef.id}`);
     }
   };
 
   const handleLike = async (id: string, isComment = false) => {
     if (!currentUser || !db) return handleSignIn();
     
+    if (isOffline) {
+      offlineService.addAction({ type: 'like', payload: { id, isComment } });
+      // Optimistic update could be added here, but for simplicity we rely on sync
+      return;
+    }
+
     if (isComment) {
       const comment = comments.find(c => c.id === id);
       if (!comment) return;
@@ -337,7 +410,11 @@ export default function App() {
           updates.dislikes = increment(-1);
         }
       }
-      await updateDoc(commentRef, updates);
+      try {
+        await updateDoc(commentRef, updates);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `comments/${id}`);
+      }
     } else {
       const targetPost = posts.find(p => p.id === id);
       if (!targetPost) return;
@@ -358,13 +435,22 @@ export default function App() {
           updates.dislikes = increment(-1);
         }
       }
-      await updateDoc(postRef, updates);
+      try {
+        await updateDoc(postRef, updates);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `posts/${actualOriginalId}`);
+      }
     }
   };
 
   const handleDislike = async (id: string, isComment = false) => {
     if (!currentUser || !db) return handleSignIn();
 
+    if (isOffline) {
+      offlineService.addAction({ type: 'dislike', payload: { id, isComment } });
+      return;
+    }
+
     if (isComment) {
       const comment = comments.find(c => c.id === id);
       if (!comment) return;
@@ -384,7 +470,11 @@ export default function App() {
           updates.likes = increment(-1);
         }
       }
-      await updateDoc(commentRef, updates);
+      try {
+        await updateDoc(commentRef, updates);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `comments/${id}`);
+      }
     } else {
       const targetPost = posts.find(p => p.id === id);
       if (!targetPost) return;
@@ -405,12 +495,21 @@ export default function App() {
           updates.likes = increment(-1);
         }
       }
-      await updateDoc(postRef, updates);
+      try {
+        await updateDoc(postRef, updates);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `posts/${actualOriginalId}`);
+      }
     }
   };
 
   const handleRepost = async (id: string) => {
     if (!currentUser || !db) return handleSignIn();
+
+    if (isOffline) {
+      offlineService.addAction({ type: 'repost', payload: { id } });
+      return;
+    }
 
     const postRef = doc(db, 'posts', id);
     const post = posts.find(p => p.id === id);
@@ -418,17 +517,21 @@ export default function App() {
 
     const hasReposted = post.repostedBy?.includes(currentUser.username);
 
-    if (hasReposted) {
-      await updateDoc(postRef, { 
-        reposts: increment(-1),
-        repostedBy: arrayRemove(currentUser.username)
-      });
-    } else {
-      await updateDoc(postRef, { 
-        reposts: increment(1),
-        repostedBy: arrayUnion(currentUser.username),
-        lastRepostedAt: new Date().toISOString()
-      });
+    try {
+      if (hasReposted) {
+        await updateDoc(postRef, { 
+          reposts: increment(-1),
+          repostedBy: arrayRemove(currentUser.username)
+        });
+      } else {
+        await updateDoc(postRef, { 
+          reposts: increment(1),
+          repostedBy: arrayUnion(currentUser.username),
+          lastRepostedAt: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${id}`);
     }
   };
 
@@ -445,22 +548,26 @@ export default function App() {
     const actualOriginalId = post.originalPostId || post.id;
     const postRef = doc(db, 'posts', actualOriginalId);
     
-    if (currentUser) {
-      const hasViewed = post.viewedBy?.includes(currentUser.id);
-      if (!hasViewed) {
-        await updateDoc(postRef, { 
-          views: increment(1),
-          viewedBy: arrayUnion(currentUser.id)
-        });
+    try {
+      if (currentUser) {
+        const hasViewed = post.viewedBy?.includes(currentUser.id);
+        if (!hasViewed) {
+          await updateDoc(postRef, { 
+            views: increment(1),
+            viewedBy: arrayUnion(currentUser.id)
+          });
+        }
+      } else {
+        // For unauthenticated users, check localStorage
+        const viewedPosts = JSON.parse(localStorage.getItem('viewedPosts') || '[]');
+        if (!viewedPosts.includes(actualOriginalId)) {
+          viewedPosts.push(actualOriginalId);
+          localStorage.setItem('viewedPosts', JSON.stringify(viewedPosts));
+          await updateDoc(postRef, { views: increment(1) });
+        }
       }
-    } else {
-      // For unauthenticated users, check localStorage
-      const viewedPosts = JSON.parse(localStorage.getItem('viewedPosts') || '[]');
-      if (!viewedPosts.includes(actualOriginalId)) {
-        viewedPosts.push(actualOriginalId);
-        localStorage.setItem('viewedPosts', JSON.stringify(viewedPosts));
-        await updateDoc(postRef, { views: increment(1) });
-      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${actualOriginalId}`);
     }
   };
 
@@ -495,7 +602,11 @@ export default function App() {
   const handleNotificationClick = async (id: string, postId?: string, commentId?: string) => {
     if (!db) return;
     const notifRef = doc(db, 'notifications', id);
-    await updateDoc(notifRef, { read: true });
+    try {
+      await updateDoc(notifRef, { read: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `notifications/${id}`);
+    }
     
     if (postId) {
       setSelectedPostId(postId);
@@ -510,12 +621,30 @@ export default function App() {
     const unread = notifications.filter(n => !n.read);
     for (const n of unread) {
       const notifRef = doc(db, 'notifications', n.id);
-      await updateDoc(notifRef, { read: true });
+      try {
+        await updateDoc(notifRef, { read: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `notifications/${n.id}`);
+      }
     }
   };
 
   if (!isAuthReady) {
-    return <div className="min-h-screen bg-black flex items-center justify-center text-slate-500">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-slate-800 animate-pulse" />
+            <div className="flex-1 space-y-2">
+              <div className="h-4 bg-slate-800 rounded w-3/4 animate-pulse" />
+              <div className="h-4 bg-slate-800 rounded w-1/2 animate-pulse" />
+            </div>
+          </div>
+          <div className="h-32 bg-slate-800 rounded-xl animate-pulse w-full" />
+          <div className="h-32 bg-slate-800 rounded-xl animate-pulse w-full" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -569,7 +698,6 @@ export default function App() {
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
             onShare={handleShare}
-            onDelete={(id) => setPostToDelete(id)}
             onRepostersClick={handleRepostersClick}
           />
         )}
@@ -584,7 +712,7 @@ export default function App() {
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
             onShare={handleShare}
-            onDelete={(id) => setPostToDelete(id)}
+            onRepostersClick={handleRepostersClick}
           />
         )}
 
@@ -598,7 +726,7 @@ export default function App() {
             onDislike={(id) => handleDislike(id, false)}
             onRepost={handleRepost}
             onShare={handleShare}
-            onDelete={(id) => setPostToDelete(id)}
+            onRepostersClick={handleRepostersClick}
           />
         )}
 
@@ -618,8 +746,12 @@ export default function App() {
             onUpdateProfile={async (updatedUser) => {
               if (!db) return;
               const userRef = doc(db, 'users', updatedUser.id);
-              await updateDoc(userRef, { username: updatedUser.username, usernameChanged: true });
-              setCurrentUser(updatedUser);
+              try {
+                await updateDoc(userRef, { username: updatedUser.username, usernameChanged: true });
+                setCurrentUser(updatedUser);
+              } catch (error) {
+                handleFirestoreError(error, OperationType.UPDATE, `users/${updatedUser.id}`);
+              }
             }}
             onLogout={() => setShowLogoutConfirm(true)}
           />
@@ -662,7 +794,6 @@ export default function App() {
             onRepost={() => handleRepost(selectedPost.id)}
             onShare={() => handleShare(selectedPost.id)}
             onSignIn={handleSignIn}
-            onDelete={() => setPostToDelete(selectedPost.id)}
             onRepostersClick={() => selectedPost.repostedBy && setRepostersList(selectedPost.repostedBy)}
           />
         )}
@@ -687,19 +818,10 @@ export default function App() {
         />
       )}
 
-      {postToDelete && (
-        <ConfirmModal
-          title="Delete Post"
-          message="Are you sure you want to delete this post? This action cannot be undone."
-          onConfirm={handleDeletePost}
-          onCancel={() => setPostToDelete(null)}
-        />
-      )}
-
       {repostersList && (
         <UserListModal
           title="Reposted by"
-          users={repostersList.map(id => users[id]).filter(Boolean)}
+          users={repostersList.map(username => (Object.values(users) as User[]).find(u => u.username === username)).filter(Boolean) as User[]}
           onClose={() => setRepostersList(null)}
         />
       )}
