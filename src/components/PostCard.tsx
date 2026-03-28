@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User } from '../types';
 import { cn } from '../utils';
 import { Avatar } from './Avatar';
 import { motion } from 'framer-motion';
+import { ImageModal } from './ImageModal';
 
 interface PostCardProps {
   post: Post;
@@ -19,6 +20,7 @@ interface PostCardProps {
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onRepostersClick }) => {
+  const [isZoomed, setIsZoomed] = useState(false);
   const isAnonymous = post.isAnonymous;
   const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
   
@@ -89,15 +91,26 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
           </p>
 
           {post.imageUrl && (
-            <div className="mt-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+            <div 
+              className="mt-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsZoomed(true);
+              }}
+            >
               <img 
                 src={post.imageUrl} 
                 alt="Post attachment" 
-                className="w-full max-h-96 object-cover"
+                className="w-full max-h-96 object-cover hover:scale-105 transition-transform duration-300"
                 loading="lazy"
               />
             </div>
           )}
+          
+          <ImageModal 
+            imageUrl={isZoomed ? post.imageUrl || null : null} 
+            onClose={() => setIsZoomed(false)} 
+          />
 
           <div className="flex items-center gap-2 mt-3">
             <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>

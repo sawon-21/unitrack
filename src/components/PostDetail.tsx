@@ -4,7 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
 import { Avatar } from './Avatar';
-import { PostSkeleton } from './PostSkeleton';
+import { ImageModal } from './ImageModal';
 
 interface PostDetailProps {
   post: Post;
@@ -12,7 +12,6 @@ interface PostDetailProps {
   comments: Comment[];
   users: Record<string, User>;
   currentUser?: User;
-  isLoading: boolean;
   highlightCommentId?: string | null;
   onBack: () => void;
   onAddComment: (text: string, replyToId?: string) => void;
@@ -26,9 +25,10 @@ interface PostDetailProps {
   onRepostersClick?: () => void;
 }
 
-export function PostDetail({ post, author, comments, users, currentUser, isLoading, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick }: PostDetailProps) {
+export function PostDetail({ post, author, comments, users, currentUser, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick }: PostDetailProps) {
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [isZoomed, setIsZoomed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isAnonymous = post.isAnonymous;
@@ -60,7 +60,7 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
         }
       }, 100);
     }
-  }, [highlightCommentId, isLoading]);
+  }, [highlightCommentId]);
 
   const handleReplyClick = (commentId: string) => {
     setReplyingTo(commentId);
@@ -139,24 +139,6 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col h-screen bg-black">
-        <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center gap-6">
-          <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-900 rounded-full transition-colors text-slate-100">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-bold text-slate-100">Post</h1>
-        </header>
-        <div className="p-4">
-          <PostSkeleton />
-          <PostSkeleton />
-          <PostSkeleton />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-screen bg-black animate-in slide-in-from-right-4 duration-300">
       <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
@@ -198,15 +180,23 @@ export function PostDetail({ post, author, comments, users, currentUser, isLoadi
           </p>
 
           {post.imageUrl && (
-            <div className="mb-4 rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+            <div 
+              className="mb-4 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in"
+              onClick={() => setIsZoomed(true)}
+            >
               <img 
                 src={post.imageUrl} 
                 alt="Post attachment" 
-                className="w-full max-h-[500px] object-contain"
+                className="w-full max-h-[500px] object-contain hover:scale-105 transition-transform duration-300"
                 loading="lazy"
               />
             </div>
           )}
+          
+          <ImageModal 
+            imageUrl={isZoomed ? post.imageUrl || null : null} 
+            onClose={() => setIsZoomed(false)} 
+          />
 
           <div className="flex items-center gap-2 mb-4">
             <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>

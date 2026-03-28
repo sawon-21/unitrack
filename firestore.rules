@@ -11,62 +11,14 @@ service cloud.firestore {
     }
     
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isAuthenticated() && userId != null && request.auth.uid == userId;
     }
 
     function isAdmin() {
       return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin' ||
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'Admin') ||
           (request.auth.token.email == "info.vaijan@gmail.com" && request.auth.token.email_verified == true)); // Default admin
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidUser(data) {
-      return data.keys().hasAll(['id', 'username', 'role']) &&
-             data.id is string && data.id.size() > 0 &&
-             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
-             data.role in ['Student', 'Admin'];
-    }
-
-    function isValidPost(data) {
-      return data.keys().hasAll(['id', 'title', 'description', 'category', 'createdAt', 'userId', 'isAnonymous', 'status', 'commentCount', 'likes', 'dislikes', 'reposts', 'views']) &&
-             data.id is string && data.id.size() > 0 &&
-             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
-             data.description is string && data.description.size() > 0 && data.description.size() < 5000 &&
-             data.category in ['Course Help', 'Announcement'] &&
-             data.createdAt is string &&
-             data.userId is string && data.userId.size() > 0 &&
-             data.isAnonymous is bool &&
-             data.status in ['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved', 'Reopened'] &&
-             data.commentCount is number && data.commentCount >= 0 &&
-             data.likes is number && data.likes >= 0 &&
-             data.dislikes is number && data.dislikes >= 0 &&
-             data.reposts is number && data.reposts >= 0 &&
-             data.views is number && data.views >= 0;
-    }
-
-    function isValidComment(data) {
-      return data.keys().hasAll(['id', 'postId', 'userId', 'text', 'createdAt', 'likes', 'dislikes']) &&
-             data.id is string && data.id.size() > 0 &&
-             data.postId is string && data.postId.size() > 0 &&
-             data.userId is string && data.userId.size() > 0 &&
-             data.text is string && data.text.size() > 0 && data.text.size() < 2000 &&
-             data.createdAt is string &&
-             data.likes is number && data.likes >= 0 &&
-             data.dislikes is number && data.dislikes >= 0;
-    }
-
-    function isValidNotification(data) {
-      return data.keys().hasAll(['id', 'userId', 'type', 'message', 'read', 'createdAt']) &&
-             data.id is string && data.id.size() > 0 &&
-             data.userId is string && data.userId.size() > 0 &&
-             data.type in ['reaction', 'comment', 'mention'] &&
-             data.message is string && data.message.size() > 0 && data.message.size() < 500 &&
-             data.read is bool &&
-             data.createdAt is string;
     }
 
     // ===============================================================
@@ -74,43 +26,43 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if true; // Public profiles are needed to show author names
-      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'Student' || isAdmin());
-      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow read: if true;
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
       allow delete: if isAdmin();
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidPost(request.resource.data);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.get('userId', null));
       allow update: if 
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'viewedBy'])) ||
         (isAuthenticated() && (
-          // Owner can update their own post
-          (isOwner(resource.data.userId) && isValidPost(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
-          // Anyone can increment likes/dislikes/reposts/views/commentCount
+          (isOwner(resource.data.get('userId', null)) && request.resource.data.get('userId', null) == resource.data.get('userId', null)) ||
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy', 'lastRepostedAt'])) ||
-          // Admin can update status
           isAdmin()
         ));
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isOwner(resource.data.get('userId', null)) || isAdmin();
     }
 
     match /comments/{commentId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isOwner(request.resource.data.userId) && isValidComment(request.resource.data);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.get('userId', null));
       allow update: if isAuthenticated() && (
-        (isOwner(resource.data.userId) && isValidComment(request.resource.data) && request.resource.data.userId == resource.data.userId) ||
+        (isOwner(resource.data.get('userId', null)) && request.resource.data.get('userId', null) == resource.data.get('userId', null)) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'likedBy', 'dislikedBy']))
       );
-      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isOwner(resource.data.get('userId', null)) || 
+                       (exists(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))) && 
+                        isOwner(get(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))).data.get('userId', null))) || 
+                       isAdmin();
     }
 
     match /notifications/{notificationId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isAuthenticated(); // Anyone can trigger a notification for someone else
-      allow update: if isOwner(resource.data.userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow delete: if isOwner(resource.data.userId);
+      allow read: if isOwner(resource.data.get('userId', null));
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.get('userId', null)) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(resource.data.get('userId', null));
     }
   }
 }

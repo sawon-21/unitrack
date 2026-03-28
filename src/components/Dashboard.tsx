@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Pin } from 'lucide-react';
 import { PostCard } from './PostCard';
-import { PostSkeleton } from './PostSkeleton';
 import { Post, User } from '../types';
 import { Avatar } from './Avatar';
 
@@ -9,7 +8,6 @@ interface DashboardProps {
   posts: Post[];
   users: Record<string, User>;
   currentUser?: User;
-  isLoading: boolean;
   onPostClick: (id: string) => void;
   onOpenSubmit: () => void;
   onLike: (id: string) => void;
@@ -19,7 +17,7 @@ interface DashboardProps {
   onRepostersClick: (usernames: string[]) => void;
 }
 
-export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onRepostersClick }: DashboardProps) {
+export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onRepostersClick }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -69,15 +67,8 @@ export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, o
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex flex-col">
-          <PostSkeleton />
-          <PostSkeleton />
-          <PostSkeleton />
-        </div>
-      ) : (
-        <>
-          {pinnedPosts.length > 0 && (
+      <>
+        {pinnedPosts.length > 0 && (
             <div className="border-b border-slate-800 py-4 bg-indigo-950/10">
               <h2 className="text-sm font-bold text-indigo-400 mb-3 px-4 flex items-center gap-2 uppercase tracking-wider">
                 <Pin className="w-4 h-4 fill-indigo-400" /> Pinned Announcements
@@ -122,13 +113,12 @@ export function Dashboard({ posts, users, currentUser, isLoading, onPostClick, o
               </div>
             )}
             {displayCount < regularPosts.length && (
-              <div ref={observerTarget} className="py-8">
-                <PostSkeleton />
+              <div ref={observerTarget} className="py-8 flex justify-center">
+                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
         </>
-      )}
 
       <button 
         onClick={onOpenSubmit}

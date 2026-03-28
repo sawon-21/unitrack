@@ -70,28 +70,64 @@ export function PostSubmissionModal({ onClose, onSubmit }: PostSubmissionModalPr
 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-              <ImageIcon className="w-4 h-4" /> Image URL (Optional)
+              <ImageIcon className="w-4 h-4" /> Image (Optional)
             </label>
             <input 
-              type="url" 
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+              type="file" 
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const img = new Image();
+                  img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                      if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                      }
+                    } else {
+                      if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                      }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx?.drawImage(img, 0, 0, width, height);
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    setImageUrl(dataUrl);
+                  };
+                  img.src = event.target?.result as string;
+                };
+                reader.readAsDataURL(file);
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-500/10 file:text-indigo-400 hover:file:bg-indigo-500/20 transition-all"
             />
             {imageUrl && (
-              <div className="mt-3 rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
+              <div className="mt-3 rounded-lg overflow-hidden border border-slate-800 bg-slate-950 relative group">
                 <img 
                   src={imageUrl} 
                   alt="Preview" 
                   className="w-full h-40 object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                  onLoad={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'block';
-                  }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setImageUrl('')}
+                  className="absolute top-2 right-2 p-1 bg-black/50 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
             )}
           </div>

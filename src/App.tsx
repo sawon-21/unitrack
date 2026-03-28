@@ -5,6 +5,8 @@
 
 import { useState, useEffect } from 'react';
 import { Home, Search, Bell, LayoutDashboard, User as UserIcon, LogIn } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Toaster, toast } from 'sonner';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
@@ -15,9 +17,10 @@ import { NotificationsScreen } from './components/NotificationsScreen';
 import { ProfileScreen } from './components/ProfileScreen';
 import { ConfirmModal } from './components/ConfirmModal';
 import { UserListModal } from './components/UserListModal';
+import { AuthModal } from './components/AuthModal';
 import { Post, Comment, Category, AppNotification, User } from './types';
 import { cn } from './utils';
-import { auth, db, signInWithGoogle, logOut } from './firebase';
+import { auth, db, logOut } from './firebase';
 import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where } from 'firebase/firestore';
@@ -51,6 +54,7 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [repostersList, setRepostersList] = useState<string[] | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -230,11 +234,16 @@ export default function App() {
           const notif = change.doc.data() as AppNotification;
           // Only show if it's recent (within last 10 seconds) to avoid spam on load
           const isRecent = notif.createdAt && (Date.now() - new Date(notif.createdAt).getTime() < 10000);
-          if (isRecent && 'Notification' in window && Notification.permission === 'granted' && !notif.read) {
-            new Notification('UniTrack', {
-              body: notif.message,
-              icon: '/icon-192x192.png'
+          if (isRecent && !notif.read) {
+            toast(notif.message, {
+              description: new Date(notif.createdAt).toLocaleTimeString(),
             });
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('UniTrack', {
+                body: notif.message,
+                icon: '/icon-192x192.png'
+              });
+            }
           }
         }
       });
@@ -246,13 +255,8 @@ export default function App() {
     return () => unsubscribeNotifs();
   }, [currentUser]);
 
-  const handleSignIn = async () => {
-    try {
-      const user = await signInWithGoogle();
-      if (!user) return; // User cancelled
-    } catch (error) {
-      console.error("Sign in failed", error);
-    }
+  const handleSignIn = () => {
+    setIsAuthModalOpen(true);
   };
 
   const syncOfflineActions = async () => {
@@ -301,8 +305,10 @@ export default function App() {
   const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrl?: string) => {
     if (!currentUser) return;
     
+    const newPostId = db && !isOffline ? doc(collection(db, 'posts')).id : Math.random().toString(36).substring(7);
+    
     const newPost: Post = {
-      id: Math.random().toString(36).substring(7),
+      id: newPostId,
       title,
       description,
       category,
@@ -324,11 +330,11 @@ export default function App() {
       return;
     }
     
-    const newPostRef = doc(collection(db, 'posts'));
+    const newPostRef = doc(db, 'posts', newPostId);
     try {
       await setDoc(newPostRef, newPost);
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `posts/${newPostRef.id}`);
+      handleFirestoreError(error, OperationType.CREATE, `posts/${newPostId}`);
     }
   };
 
@@ -632,17 +638,42 @@ export default function App() {
   if (!isAuthReady) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-slate-800 animate-pulse" />
-            <div className="flex-1 space-y-2">
-              <div className="h-4 bg-slate-800 rounded w-3/4 animate-pulse" />
-              <div className="h-4 bg-slate-800 rounded w-1/2 animate-pulse" />
-            </div>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 tracking-tighter mb-4"
+        >
+          UniTrack
+        </motion.div>
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+          className="flex gap-2"
+        >
+          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2 h-2 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="flex flex-col items-center gap-4"
+        >
+          <div className="w-20 h-20 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/50">
+            <span className="text-4xl font-bold text-white">U</span>
           </div>
-          <div className="h-32 bg-slate-800 rounded-xl animate-pulse w-full" />
-          <div className="h-32 bg-slate-800 rounded-xl animate-pulse w-full" />
-        </div>
+          <h1 className="text-3xl font-bold text-white tracking-widest uppercase">UniTrack</h1>
+        </motion.div>
       </div>
     );
   }
@@ -688,7 +719,6 @@ export default function App() {
             posts={displayedPosts} 
             users={users} 
             currentUser={currentUser || undefined}
-            isLoading={isLoading}
             onPostClick={handlePostClick} 
             onOpenSubmit={() => {
               if (!currentUser) handleSignIn();
@@ -743,16 +773,6 @@ export default function App() {
           <ProfileScreen 
             currentUser={currentUser}
             users={users}
-            onUpdateProfile={async (updatedUser) => {
-              if (!db) return;
-              const userRef = doc(db, 'users', updatedUser.id);
-              try {
-                await updateDoc(userRef, { username: updatedUser.username, usernameChanged: true });
-                setCurrentUser(updatedUser);
-              } catch (error) {
-                handleFirestoreError(error, OperationType.UPDATE, `users/${updatedUser.id}`);
-              }
-            }}
             onLogout={() => setShowLogoutConfirm(true)}
           />
         )}
@@ -778,7 +798,6 @@ export default function App() {
             comments={postComments} 
             users={users} 
             currentUser={currentUser || undefined}
-            isLoading={isLoading}
             highlightCommentId={highlightCommentId}
             onBack={() => { 
               setCurrentScreen('dashboard'); 
@@ -877,6 +896,8 @@ export default function App() {
           <UserIcon className="w-6 h-6" />
         </button>
       </nav>
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+      <Toaster theme="dark" position="top-center" />
     </div>
   );
 }
