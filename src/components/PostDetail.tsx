@@ -5,6 +5,9 @@ import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
 import { Avatar } from './Avatar';
 import { ImageModal } from './ImageModal';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 interface PostDetailProps {
   post: Post;
@@ -26,9 +29,12 @@ interface PostDetailProps {
 }
 
 export function PostDetail({ post, author, comments, users, currentUser, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick }: PostDetailProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollDirection = useScrollDirection(scrollRef);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isAnonymous = post.isAnonymous;
@@ -47,15 +53,20 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
     'Reopened': 'text-blue-400 border-blue-400/30 bg-blue-400/10',
   };
 
+  const isOlderThan24h = Date.now() - new Date(post.createdAt).getTime() > 24 * 60 * 60 * 1000;
+  const showStatus = !(post.status === 'New' && isOlderThan24h);
+
+  const images = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
+
   useEffect(() => {
     if (highlightCommentId) {
       setTimeout(() => {
         const element = document.getElementById(`comment-${highlightCommentId}`);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('bg-indigo-900/30', 'transition-colors', 'duration-1000');
+          element.classList.add('bg-sky-900/30', 'transition-colors', 'duration-1000');
           setTimeout(() => {
-            element.classList.remove('bg-indigo-900/30');
+            element.classList.remove('bg-sky-900/30');
           }, 3000);
         }
       }, 100);
@@ -89,11 +100,11 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
     const isCommentDisliked = currentUser ? comment.dislikedBy?.includes(currentUser.id) : false;
 
     return (
-      <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3 transition-colors duration-1000", isReply ? "mt-4 -mx-2 px-2 py-1 rounded-lg" : "border-b border-slate-800 p-4")}>
-        <Avatar user={commentAuthor} username={cHandle} className="w-10 h-10 text-base" />
+      <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3 transition-colors duration-1000", isReply ? "mt-3 pl-3 border-l-2 border-slate-800" : "border-b border-slate-800 p-4")}>
+        {!isReply && <Avatar user={commentAuthor} username={cHandle} className="w-10 h-10 text-base shrink-0" />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-base truncate">
-            <span className="font-bold text-slate-100 truncate hover:underline">@{cHandle}</span>
+            <span className="font-bold text-slate-300 truncate hover:underline">@{cHandle}</span>
             {commentAuthor?.role === 'Admin' && (
               <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
             )}
@@ -102,16 +113,16 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: false }).replace('about ', '')}
             </span>
           </div>
-          <p className="text-slate-100 mt-1 text-base leading-normal whitespace-pre-wrap">
-            {comment.text}
-          </p>
+          <div className="text-slate-100 mt-1 text-base leading-normal whitespace-pre-wrap prose prose-invert prose-sm max-w-none">
+            <Markdown remarkPlugins={[remarkGfm]}>{comment.text}</Markdown>
+          </div>
           
           <div className="flex items-center justify-between mt-3 text-slate-500 max-w-md">
             <button 
               onClick={() => currentUser ? handleReplyClick(comment.id) : onSignIn()}
-              className="flex items-center gap-2 hover:text-indigo-400 group transition-colors"
+              className="flex items-center gap-2 hover:text-sky-400 group transition-colors"
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-5 h-5" /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-sky-500/10"><MessageSquare className="w-5 h-5" /></div>
             </button>
             <button 
               onClick={() => currentUser ? onCommentLike(comment.id) : onSignIn()}
@@ -140,8 +151,11 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
   };
 
   return (
-    <div className="flex flex-col h-screen bg-black animate-in slide-in-from-right-4 duration-300">
-      <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div className="flex flex-col h-screen bg-black animate-in slide-in-from-right-4 duration-300 relative">
+      <header className={cn(
+        "absolute top-0 left-0 right-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between transition-transform duration-300",
+        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+      )}>
         <div className="flex items-center gap-6">
           <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-900 rounded-full transition-colors text-slate-100">
             <ArrowLeft className="w-5 h-5" />
@@ -150,11 +164,11 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto pb-32 sm:pb-40">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pt-14 pb-32 sm:pb-40">
         <div className="p-4 border-b border-slate-800">
           {post.repostedBy && post.repostedBy.length > 0 && (
             <div 
-              className="flex items-center gap-2 text-slate-500 text-xs font-bold mb-3 uppercase tracking-wider cursor-pointer hover:text-indigo-400 transition-colors w-fit"
+              className="flex items-center gap-2 text-slate-500 text-xs font-bold mb-3 uppercase tracking-wider cursor-pointer hover:text-sky-400 transition-colors w-fit"
               onClick={onRepostersClick}
             >
               <Repeat2 className="w-3 h-3" /> Reposted by {
@@ -167,7 +181,7 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
           <div className="flex items-center gap-3 mb-4">
             <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-12 h-12 text-base" />
             <div className="flex items-center gap-1.5">
-              <h2 className="font-bold text-slate-100 text-base">@{authorHandle}</h2>
+              <h2 className="font-bold text-slate-400 text-base">@{authorHandle}</h2>
               {!isAnonymous && author?.role === 'Admin' && (
                 <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
               )}
@@ -175,37 +189,54 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
           </div>
 
           <h1 className="text-2xl font-bold text-slate-100 mb-2 leading-snug">{post.title}</h1>
-          <p className="text-slate-100 text-lg leading-relaxed mb-4 whitespace-pre-wrap">
-            {post.description}
-          </p>
+          <hr className="border-slate-800 my-4" />
+          <div className="text-slate-100 text-lg leading-relaxed mb-4 whitespace-pre-wrap prose prose-invert max-w-none">
+            <Markdown remarkPlugins={[remarkGfm]}>{post.description}</Markdown>
+          </div>
 
-          {post.imageUrl && (
-            <div 
-              className="mb-4 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in"
-              onClick={() => setIsZoomed(true)}
-            >
-              <img 
-                src={post.imageUrl} 
-                alt="Post attachment" 
-                className="w-full max-h-[500px] object-contain hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-              />
+          {images.length > 0 && (
+            <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+              {images.slice(0, 2).map((url, index) => (
+                <div 
+                  key={index}
+                  className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
+                  onClick={() => {
+                    setZoomedImageIndex(index);
+                    setIsZoomed(true);
+                  }}
+                >
+                  <img 
+                    src={url} 
+                    alt={`Attachment ${index + 1}`} 
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                  {index === 1 && images.length > 2 && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <span className="text-white text-3xl font-bold">+{images.length - 2}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
           
           <ImageModal 
-            imageUrl={isZoomed ? post.imageUrl || null : null} 
+            imageUrls={isZoomed ? images : null}
+            initialIndex={zoomedImageIndex}
             onClose={() => setIsZoomed(false)} 
           />
 
-          <div className="flex items-center gap-2 mb-4">
-            <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
-              {post.status}
-            </span>
-            <span className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5">
-              {post.category}
-            </span>
-          </div>
+          {showStatus && (
+            <div className="flex items-center gap-2 mb-4">
+              <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
+                {post.status}
+              </span>
+              <span className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5">
+                {post.category}
+              </span>
+            </div>
+          )}
 
           <div className="flex items-center gap-1 text-slate-500 text-sm py-4 border-t border-slate-800">
             <span className="hover:underline cursor-pointer">
@@ -216,12 +247,12 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
               {new Date(post.createdAt).toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}
             </span>
             <span>·</span>
-            <span className="font-bold text-slate-100">{post.views || 0}</span> Views
+            <span className="font-bold text-slate-400">{post.views || 0}</span> Views
           </div>
 
           <div className="flex items-center justify-around py-3 border-t border-b border-slate-800 text-slate-500">
-            <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
-              <div className="p-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-5 h-5" /></div>
+            <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10"><MessageSquare className="w-5 h-5" /></div>
               <span className="text-sm">{post.commentCount}</span>
             </button>
             <button 
@@ -245,14 +276,14 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
               <div className="p-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-5 h-5", isDisliked && "fill-pink-500")} /></div>
               <span className="text-sm">{post.dislikes || 0}</span>
             </button>
-            <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
-              <div className="p-2 rounded-full group-hover:bg-indigo-500/10"><BarChart2 className="w-5 h-5" /></div>
+            <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10"><BarChart2 className="w-5 h-5" /></div>
             </button>
             <button 
               onClick={onShare}
-              className="flex items-center gap-2 hover:text-indigo-400 group transition-colors"
+              className="flex items-center gap-2 hover:text-sky-400 group transition-colors"
             >
-              <div className="p-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
+              <div className="p-2 rounded-full group-hover:bg-sky-500/10"><Share className="w-5 h-5" /></div>
             </button>
           </div>
         </div>
@@ -271,12 +302,12 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
         {currentUser ? (
           <>
             {replyingTo && (
-              <div className="flex items-center justify-between text-xs text-indigo-400 mb-2 px-2 bg-indigo-950/30 py-1.5 rounded-md">
+              <div className="flex items-center justify-between text-xs text-sky-400 mb-2 px-2 bg-sky-950/30 py-1.5 rounded-md">
                 <div className="flex items-center gap-1.5">
                   <Reply className="w-3 h-3" />
                   <span>Replying to @{users[comments.find(c => c.id === replyingTo)?.userId || '']?.username || 'user'}</span>
                 </div>
-                <button onClick={() => setReplyingTo(null)} className="hover:text-indigo-300 p-1 rounded-full hover:bg-indigo-900/50">
+                <button onClick={() => setReplyingTo(null)} className="hover:text-sky-300 p-1 rounded-full hover:bg-sky-900/50">
                   <X className="w-3 h-3" />
                 </button>
               </div>
@@ -290,12 +321,12 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
                   value={newComment}
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder={replyingTo ? "Post your reply" : "Post your reply"} 
-                  className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-4 pr-12 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-4 pr-12 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
                 />
                 <button 
                   type="submit"
                   disabled={!newComment.trim()}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -307,7 +338,7 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
             <span className="text-sm text-slate-400">Sign in to join the conversation</span>
             <button 
               onClick={onSignIn}
-              className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-full transition-colors"
+              className="px-4 py-1.5 bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold rounded-full transition-colors"
             >
               Sign In
             </button>

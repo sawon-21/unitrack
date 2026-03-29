@@ -1,6 +1,6 @@
 export type Role = 'Admin' | 'Student';
 export type Status = 'New' | 'Acknowledged' | 'Investigating' | 'Dev In-Progress' | 'Resolved' | 'Reopened';
-export type Category = 'Course Help' | 'Announcement';
+export type Category = 'Academics' | 'Campus Issues' | 'Suggestions' | 'Lost' | 'Found' | 'Opportunities';
 
 export interface User {
   id: string;
@@ -33,6 +33,7 @@ export interface Post {
   originalPostId?: string;
   lastRepostedAt?: string;
   imageUrl?: string;
+  imageUrls?: string[];
 }
 
 export interface Comment {

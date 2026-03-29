@@ -2,6 +2,8 @@ import React from 'react';
 import { User } from '../types';
 import { Avatar } from './Avatar';
 import { Settings, LogOut, BadgeCheck } from 'lucide-react';
+import { cn } from '../utils';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 interface ProfileScreenProps {
   currentUser: User;
@@ -10,9 +12,14 @@ interface ProfileScreenProps {
 }
 
 export function ProfileScreen({ currentUser, users, onLogout }: ProfileScreenProps) {
+  const scrollDirection = useScrollDirection();
+
   return (
     <div className="pb-20 animate-in fade-in duration-200">
-      <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center">
+      <header className={cn(
+        "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center transition-transform duration-300",
+        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+      )}>
         <h1 className="text-xl font-bold text-slate-100">Profile & Settings</h1>
       </header>
 

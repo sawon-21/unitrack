@@ -18,6 +18,7 @@ import { ProfileScreen } from './components/ProfileScreen';
 import { ConfirmModal } from './components/ConfirmModal';
 import { UserListModal } from './components/UserListModal';
 import { AuthModal } from './components/AuthModal';
+import { playNotificationSound } from './lib/sound';
 import { Post, Comment, Category, AppNotification, User } from './types';
 import { cn } from './utils';
 import { auth, db, logOut } from './firebase';
@@ -25,10 +26,12 @@ import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
+import { useScrollDirection } from './hooks/useScrollDirection';
 
 type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail';
 
 export default function App() {
+  const scrollDirection = useScrollDirection();
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
@@ -235,8 +238,10 @@ export default function App() {
           // Only show if it's recent (within last 10 seconds) to avoid spam on load
           const isRecent = notif.createdAt && (Date.now() - new Date(notif.createdAt).getTime() < 10000);
           if (isRecent && !notif.read) {
+            playNotificationSound();
             toast(notif.message, {
               description: new Date(notif.createdAt).toLocaleTimeString(),
+              className: "shadow-[0_0_15px_rgba(14,165,233,0.5)] border-sky-500/50 bg-slate-900 text-white",
             });
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('UniTrack', {
@@ -302,7 +307,7 @@ export default function App() {
     }
   }, [isOffline]);
 
-  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrl?: string) => {
+  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[]) => {
     if (!currentUser) return;
     
     const newPostId = db && !isOffline ? doc(collection(db, 'posts')).id : Math.random().toString(36).substring(7);
@@ -321,7 +326,7 @@ export default function App() {
       dislikes: 0,
       reposts: 0,
       views: 0,
-      ...(imageUrl && { imageUrl })
+      ...(imageUrls && imageUrls.length > 0 && { imageUrls })
     };
 
     if (isOffline || !db) {
@@ -578,26 +583,26 @@ export default function App() {
   };
 
   const handleShare = (id: string) => {
+    const post = posts.find(p => p.id === id);
+    if (!post) return;
+    
     const url = `${window.location.origin}/#post-${id}`;
+    const shareText = `${post.title}\n${url}\n#unitrack`;
+    
     if (navigator.share) {
       navigator.share({
-        title: 'Check out this post',
-        url: url
+        title: post.title,
+        text: shareText,
       }).catch(console.error);
     } else {
-      navigator.clipboard.writeText(url).then(() => {
-        alert('Link copied to clipboard!');
+      navigator.clipboard.writeText(shareText).then(() => {
+        toast('Link copied to clipboard!');
       });
     }
   };
 
   const displayedPosts = activeTab === 'my' && currentUser
-    ? posts.filter(p => 
-        p.userId === currentUser.id || 
-        comments.some(c => c.postId === p.id && c.userId === currentUser.id) ||
-        p.likedBy?.includes(currentUser.id) ||
-        p.dislikedBy?.includes(currentUser.id)
-      ) 
+    ? posts.filter(p => p.userId === currentUser.id)
     : posts;
 
   const selectedPost = posts.find(p => p.id === selectedPostId);
@@ -642,7 +647,7 @@ export default function App() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 tracking-tighter mb-4"
+          className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 tracking-tighter mb-4"
         >
           UniTrack
         </motion.div>
@@ -652,7 +657,7 @@ export default function App() {
           transition={{ delay: 0.3, duration: 0.5 }}
           className="flex gap-2"
         >
-          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2 h-2 rounded-full bg-sky-500 animate-bounce" style={{ animationDelay: '0ms' }} />
           <div className="w-2 h-2 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: '150ms' }} />
           <div className="w-2 h-2 rounded-full bg-pink-500 animate-bounce" style={{ animationDelay: '300ms' }} />
         </motion.div>
@@ -669,7 +674,7 @@ export default function App() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="flex flex-col items-center gap-4"
         >
-          <div className="w-20 h-20 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/50">
+          <div className="w-20 h-20 bg-sky-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-sky-500/50">
             <span className="text-4xl font-bold text-white">U</span>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-widest uppercase">UniTrack</h1>
@@ -679,7 +684,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 font-sans selection:bg-indigo-500 selection:text-white pb-14">
+    <div className="min-h-screen bg-black text-slate-100 font-sans selection:bg-sky-500 selection:text-white pb-14">
       {isOffline && (
         <div className="bg-red-500 text-white text-center py-1 text-sm font-bold sticky top-0 z-50">
           You are offline. Some features may not be available.
@@ -687,7 +692,7 @@ export default function App() {
       )}
 
       {showInstallPrompt && (
-        <div className="fixed bottom-16 left-4 right-4 bg-indigo-600 text-white p-4 rounded-xl shadow-2xl z-50 flex items-center justify-between">
+        <div className="fixed bottom-16 left-4 right-4 bg-sky-600 text-white p-4 rounded-xl shadow-2xl z-50 flex items-center justify-between">
           <div>
             <h3 className="font-bold">Install UniTrack</h3>
             <p className="text-sm opacity-90">Add to your home screen for a better experience.</p>
@@ -695,13 +700,13 @@ export default function App() {
           <div className="flex gap-2">
             <button 
               onClick={() => setShowInstallPrompt(false)}
-              className="px-3 py-1.5 text-sm font-medium hover:bg-indigo-700 rounded-lg transition-colors"
+              className="px-3 py-1.5 text-sm font-medium hover:bg-sky-700 rounded-lg transition-colors"
             >
               Later
             </button>
             <button 
               onClick={handleInstallClick}
-              className="px-3 py-1.5 text-sm font-bold bg-white text-indigo-600 rounded-lg hover:bg-slate-100 transition-colors shadow-sm"
+              className="px-3 py-1.5 text-sm font-bold bg-white text-sky-600 rounded-lg hover:bg-slate-100 transition-colors shadow-sm"
             >
               Install
             </button>
@@ -784,7 +789,7 @@ export default function App() {
             <p className="text-slate-400 mb-6 max-w-sm">Sign in to react, comment, and create your own posts on UniTrack.</p>
             <button 
               onClick={handleSignIn}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-3 rounded-full font-bold transition-colors flex items-center gap-2"
+              className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-full font-bold transition-colors flex items-center gap-2"
             >
               <LogIn className="w-5 h-5" /> Sign in with Google
             </button>
@@ -845,10 +850,14 @@ export default function App() {
         />
       )}
 
-      {/* Hide bottom nav on detail screen on mobile to prevent overlap with comment box */}
+      {/* Hide bottom nav on detail screen on mobile to prevent overlap with comment box, and on scroll down */}
       <nav className={cn(
         "fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-slate-800 flex justify-around items-center h-14 z-50 max-w-3xl mx-auto transition-transform duration-300",
-        currentScreen === 'detail' ? "translate-y-full sm:translate-y-0" : "translate-y-0"
+        currentScreen === 'detail' 
+          ? "translate-y-full sm:translate-y-0" 
+          : scrollDirection === 'down' 
+            ? "translate-y-full" 
+            : "translate-y-0"
       )}>
         <button 
           onClick={() => { 
@@ -884,7 +893,7 @@ export default function App() {
         >
           <Bell className="w-6 h-6" />
           {unreadNotifications > 0 && (
-            <span className="absolute top-2 right-2 w-4 h-4 bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full">
+            <span className="absolute top-2 right-2 w-4 h-4 bg-sky-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full">
               {unreadNotifications > 9 ? '9+' : unreadNotifications}
             </span>
           )}

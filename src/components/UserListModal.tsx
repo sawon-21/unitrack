@@ -33,7 +33,7 @@ export const UserListModal: React.FC<UserListModalProps> = ({ title, users, onCl
                   <div>
                     <p className="font-bold text-slate-200">@{user.username}</p>
                     {user.role === 'Admin' && (
-                      <span className="text-xs font-medium text-indigo-400">Admin</span>
+                      <span className="text-xs font-medium text-sky-400">Admin</span>
                     )}
                   </div>
                 </div>

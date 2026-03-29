@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '../utils';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 interface HeaderProps {
   activeTab: 'all' | 'my';
@@ -7,8 +8,13 @@ interface HeaderProps {
 }
 
 export function Header({ activeTab, onTabChange }: HeaderProps) {
+  const scrollDirection = useScrollDirection();
+
   return (
-    <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 flex flex-col">
+    <header className={cn(
+      "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 flex flex-col transition-transform duration-300",
+      scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+    )}>
       <div className="px-4 pt-2 pb-1 flex items-center justify-center">
         <h1 className="text-lg font-bold text-slate-100">UniTrack</h1>
       </div>
@@ -21,7 +27,7 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
           )}
         >
           For you
-          {activeTab === 'all' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-indigo-500 rounded-full" />}
+          {activeTab === 'all' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-sky-500 rounded-full" />}
         </button>
         <button
           onClick={() => onTabChange('my')}
@@ -31,7 +37,7 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
           )}
         >
           Following
-          {activeTab === 'my' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-indigo-500 rounded-full" />}
+          {activeTab === 'my' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-sky-500 rounded-full" />}
         </button>
       </div>
     </header>

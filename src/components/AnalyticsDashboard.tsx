@@ -1,6 +1,8 @@
 import React from 'react';
 import { Post, User } from '../types';
 import { PostCard } from './PostCard';
+import { cn } from '../utils';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 interface AnalyticsDashboardProps {
   posts: Post[];
@@ -15,6 +17,7 @@ interface AnalyticsDashboardProps {
 }
 
 export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick }: AnalyticsDashboardProps) {
+  const scrollDirection = useScrollDirection();
   // Filter out admin posts
   const userPosts = posts.filter(p => users[p.userId]?.role !== 'Admin');
 
@@ -38,13 +41,16 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
 
   return (
     <div className="pb-20 animate-in fade-in duration-200">
-      <header className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+      <header className={cn(
+        "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
+        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+      )}>
         <h1 className="text-xl font-bold text-slate-100">Analytics Dashboard</h1>
       </header>
       
       <div className="p-4 grid grid-cols-2 gap-4 border-b border-slate-800">
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
-          <div className="text-2xl font-bold text-indigo-400">{userPosts.length}</div>
+          <div className="text-2xl font-bold text-sky-400">{userPosts.length}</div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">Total Posts</div>
         </div>
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">

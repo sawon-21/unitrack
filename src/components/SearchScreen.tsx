@@ -1,8 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, ArrowLeft, BadgeCheck } from 'lucide-react';
 import { PostCard } from './PostCard';
 import { Post, User } from '../types';
 import { Avatar } from './Avatar';
+import Fuse from 'fuse.js';
+import { cn } from '../utils';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 
 interface SearchScreenProps {
   posts: Post[];
@@ -16,29 +19,8 @@ interface SearchScreenProps {
   onRepostersClick: (usernames: string[]) => void;
 }
 
-// Simple synonyms dictionary
-const SYNONYMS: Record<string, string[]> = {
-  'help': ['assist', 'support', 'issue', 'problem'],
-  'issue': ['problem', 'bug', 'error', 'help'],
-  'admin': ['official', 'system', 'management'],
-  'exam': ['test', 'quiz', 'midterm', 'final'],
-  'class': ['lecture', 'course', 'session'],
-};
-
-// Fuzzy match function
-const fuzzyMatch = (str: string, query: string) => {
-  if (!query) return true;
-  let i = 0, j = 0;
-  const s = str.toLowerCase();
-  const q = query.toLowerCase();
-  while (i < s.length && j < q.length) {
-    if (s[i] === q[j]) j++;
-    i++;
-  }
-  return j === q.length;
-};
-
 export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick }: SearchScreenProps) {
+  const scrollDirection = useScrollDirection();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -47,8 +29,15 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
   const isUserSearch = searchQuery.startsWith('@');
   const userQuery = isUserSearch ? searchQuery.slice(1).toLowerCase() : '';
   
+  const userList = useMemo(() => Object.values(users), [users]);
+  
+  const userFuse = useMemo(() => new Fuse(userList, {
+    keys: ['username'],
+    threshold: 0.3,
+  }), [userList]);
+
   const suggestedUsers = isUserSearch && userQuery.length > 0
-    ? Object.values(users).filter(u => u.username.toLowerCase().includes(userQuery) || fuzzyMatch(u.username, userQuery))
+    ? userFuse.search(userQuery).map(result => result.item)
     : [];
 
   // Hide suggestions if exact match
@@ -58,64 +47,45 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     }
   }, [searchQuery, suggestedUsers, isUserSearch, userQuery]);
 
-  const getRelevanceScore = (post: Post, query: string) => {
-    if (!query.trim()) return 0;
+  const postsWithAuthor = useMemo(() => posts.map(post => ({
+    ...post,
+    authorUsername: post.isAnonymous ? `anon_${post.id.substring(0, 6)}` : (users[post.userId]?.username || ''),
+  })), [posts, users]);
+
+  const postFuse = useMemo(() => new Fuse(postsWithAuthor, {
+    keys: [
+      { name: 'title', weight: 2 },
+      { name: 'description', weight: 1 },
+      { name: 'category', weight: 1.5 },
+      { name: 'authorUsername', weight: 2 },
+    ],
+    threshold: 0.4,
+    includeScore: true,
+  }), [postsWithAuthor]);
+
+  const filteredPosts = useMemo(() => {
+    if (!searchQuery.trim()) return [];
     
     if (isUserSearch) {
-      if (post.isAnonymous) {
-        const anonHandle = `anon_${post.id.substring(0, 6)}`;
-        if (anonHandle === userQuery) return 100;
-        if (anonHandle.includes(userQuery)) return 50;
-        return 0;
-      }
-      const author = users[post.userId];
-      if (!author) return 0;
-      if (author.username.toLowerCase() === userQuery) return 100;
-      if (author.username.toLowerCase().includes(userQuery)) return 50;
-      if (fuzzyMatch(author.username, userQuery)) return 10;
-      return 0;
+      return postsWithAuthor.filter(post => post.authorUsername.toLowerCase().includes(userQuery));
     }
 
-    const q = query.toLowerCase();
-    let score = 0;
-    const author = users[post.userId];
-
-    // Exact matches
-    if (post.title.toLowerCase().includes(q)) score += 50;
-    if (post.description.toLowerCase().includes(q)) score += 30;
-    if (post.category.toLowerCase().includes(q)) score += 20;
-    if (!post.isAnonymous && author && author.username.toLowerCase().includes(q)) score += 40;
-
-    // Fuzzy matches
-    if (fuzzyMatch(post.title, q)) score += 10;
-    if (fuzzyMatch(post.description, q)) score += 5;
-
-    // Synonym matches
-    const words = q.split(/\s+/);
-    for (const word of words) {
-      if (SYNONYMS[word]) {
-        for (const syn of SYNONYMS[word]) {
-          if (post.title.toLowerCase().includes(syn)) score += 15;
-          if (post.description.toLowerCase().includes(syn)) score += 10;
-        }
-      }
-    }
-
-    // Engagement metrics boost (only if there's a base score)
-    if (score > 0) {
+    const results = postFuse.search(searchQuery);
+    
+    // Boost score based on engagement
+    const boostedResults = results.map(result => {
+      const post = result.item;
       const engagementScore = (post.likes || 0) * 2 + (post.reposts || 0) * 5 + (post.commentCount || 0) * 3 + Math.floor((post.views || 0) / 10);
-      // Cap the engagement boost to prevent it from completely overriding relevance
-      score += Math.min(engagementScore, 50);
-    }
+      // Fuse score is 0 (perfect match) to 1 (no match). We invert it for our logic.
+      const baseScore = (1 - (result.score || 0)) * 100;
+      const finalScore = baseScore + Math.min(engagementScore, 50);
+      return { post, score: finalScore };
+    });
 
-    return score;
-  };
-
-  const filteredPosts = posts
-    .map(post => ({ post, score: getRelevanceScore(post, searchQuery) }))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(item => item.post);
+    return boostedResults
+      .sort((a, b) => b.score - a.score)
+      .map(item => item.post);
+  }, [searchQuery, isUserSearch, userQuery, postFuse, postsWithAuthor]);
 
   const handleUserSelect = (username: string) => {
     setSearchQuery(`@${username}`);
@@ -140,7 +110,10 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
 
   return (
     <div className="pb-20 animate-in fade-in duration-200">
-      <div className="sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+      <div className={cn(
+        "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
+        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+      )}>
         <div className="relative" ref={containerRef}>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <input 
@@ -153,7 +126,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
               setShowSuggestions(e.target.value.startsWith('@'));
             }}
             onFocus={() => setShowSuggestions(searchQuery.startsWith('@'))}
-            className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+            className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
           />
           
           {showSuggestions && suggestedUsers.length > 0 && (
@@ -182,7 +155,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
         {!searchQuery.trim() ? (
           <div className="py-6 px-4">
             <h2 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <span className="text-indigo-500">#</span> Trending
+              <span className="text-sky-500">#</span> Trending
             </h2>
             <div className="space-y-3">
               {trendingPosts.map((post, index) => (
@@ -196,7 +169,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
                     <h3 className="font-bold text-slate-200 truncate">{post.title}</h3>
                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                       <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {post.likes} likes</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> {post.commentCount} comments</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span> {post.commentCount} comments</span>
                     </div>
                   </div>
                 </div>

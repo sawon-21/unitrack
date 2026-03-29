@@ -12,6 +12,7 @@ interface AuthModalProps {
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,17 +25,33 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       setError('Username must be at least 3 characters');
       return;
     }
+    if (!isLogin && !email) {
+      setError('Email is required for sign up');
+      return;
+    }
     if (pin.length < 6 || !/^\d+$/.test(pin)) {
       setError('PIN must be at least 6 digits');
       return;
     }
 
     setLoading(true);
-    const email = `${username.toLowerCase()}@unitrack.app`;
 
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, pin);
+        // Find email by username
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('username', '==', username.toLowerCase()));
+        const snapshot = await getDocs(q);
+        
+        let loginEmail = `${username.toLowerCase()}@unitrack.app`; // fallback
+        if (!snapshot.empty) {
+          const userData = snapshot.docs[0].data();
+          if (userData.email) {
+            loginEmail = userData.email;
+          }
+        }
+        
+        await signInWithEmailAndPassword(auth, loginEmail, pin);
         onClose();
       } else {
         // Check if username exists
@@ -53,6 +70,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           id: userCredential.user.uid,
           username: username.toLowerCase(),
+          email: email,
           role: 'Student',
           usernameChanged: false,
           createdAt: new Date().toISOString()
@@ -64,7 +82,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Invalid username or PIN');
       } else if (err.code === 'auth/email-already-in-use') {
-        setError('Username already taken');
+        setError('Email already in use');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Invalid email address');
       } else if (err.code === 'auth/operation-not-allowed') {
         setError('FIREBASE_SETUP_REQUIRED');
       } else {
@@ -127,11 +147,24 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500 transition-colors"
                   placeholder="Enter username"
                   required
                 />
               </div>
+              {!isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500 transition-colors"
+                    placeholder="Enter email address"
+                    required
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">6-Digit PIN</label>
                 <input
@@ -141,7 +174,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   maxLength={6}
                   value={pin}
                   onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500 transition-colors tracking-[0.5em] font-mono text-lg"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500 transition-colors tracking-[0.5em] font-mono text-lg"
                   placeholder="••••••"
                   required
                 />
@@ -149,7 +182,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center"
+                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center"
               >
                 {loading ? <Loader2 className="animate-spin" /> : (isLogin ? 'Sign In' : 'Sign Up')}
               </button>

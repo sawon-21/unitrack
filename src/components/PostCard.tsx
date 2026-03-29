@@ -6,6 +6,8 @@ import { cn } from '../utils';
 import { Avatar } from './Avatar';
 import { motion } from 'framer-motion';
 import { ImageModal } from './ImageModal';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface PostCardProps {
   post: Post;
@@ -21,6 +23,7 @@ interface PostCardProps {
 
 export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onRepostersClick }) => {
   const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
   const isAnonymous = post.isAnonymous;
   const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
   
@@ -37,6 +40,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
     'Reopened': 'text-blue-400 border-blue-400/30 bg-blue-400/10',
   };
 
+  const isOlderThan24h = Date.now() - new Date(post.createdAt).getTime() > 24 * 60 * 60 * 1000;
+  const showStatus = !(post.status === 'New' && isOlderThan24h);
+
+  const images = post.imageUrls || (post.imageUrl ? [post.imageUrl] : []);
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -47,7 +55,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
     >
       {post.repostedBy && post.repostedBy.length > 0 && (
         <div 
-          className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 mb-1 uppercase tracking-wider cursor-pointer hover:text-indigo-400 transition-colors w-fit"
+          className="flex items-center gap-2 text-slate-500 text-xs font-bold ml-10 mb-1 uppercase tracking-wider cursor-pointer hover:text-sky-400 transition-colors w-fit"
           onClick={(e) => {
             e.stopPropagation();
             if (onRepostersClick) onRepostersClick();
@@ -70,8 +78,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-base truncate">
-              {/* Removed display name, using only username as requested */}
-              <span className="font-bold text-slate-100 truncate hover:underline">@{authorHandle}</span>
+              <span className="font-bold text-slate-400 truncate hover:underline">@{authorHandle}</span>
               {!isAnonymous && author?.role === 'Admin' && (
                 <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
               )}
@@ -86,44 +93,60 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             {post.title}
           </h2>
           
-          <p className="text-slate-300 mt-1 text-base leading-normal line-clamp-3">
-            {post.description}
-          </p>
+          <hr className="border-slate-800 my-2" />
+          
+          <div className="text-slate-300 mt-1 text-base leading-normal line-clamp-3 prose prose-invert prose-sm max-w-none">
+            <Markdown remarkPlugins={[remarkGfm]}>{post.description}</Markdown>
+          </div>
 
-          {post.imageUrl && (
-            <div 
-              className="mt-3 rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsZoomed(true);
-              }}
-            >
-              <img 
-                src={post.imageUrl} 
-                alt="Post attachment" 
-                className="w-full max-h-96 object-cover hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-              />
+          {images.length > 0 && (
+            <div className={cn("mt-3 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+              {images.slice(0, 2).map((url, index) => (
+                <div 
+                  key={index}
+                  className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoomedImageIndex(index);
+                    setIsZoomed(true);
+                  }}
+                >
+                  <img 
+                    src={url} 
+                    alt={`Attachment ${index + 1}`} 
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                  {index === 1 && images.length > 2 && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <span className="text-white text-2xl font-bold">+{images.length - 2}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
           
           <ImageModal 
-            imageUrl={isZoomed ? post.imageUrl || null : null} 
+            imageUrls={isZoomed ? images : null}
+            initialIndex={zoomedImageIndex}
             onClose={() => setIsZoomed(false)} 
           />
 
           <div className="flex items-center gap-2 mt-3">
-            <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
-              {post.status}
-            </span>
+            {showStatus && (
+              <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
+                {post.status}
+              </span>
+            )}
             <span className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5">
               {post.category}
             </span>
           </div>
 
           <div className="flex items-center justify-between mt-3 text-slate-500 max-w-md">
-            <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><MessageSquare className="w-5 h-5" /></div>
+            <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
+              <div className="p-2 -m-2 rounded-full group-hover:bg-sky-500/10"><MessageSquare className="w-5 h-5" /></div>
               <span className="text-sm">{post.commentCount}</span>
             </button>
             <button 
@@ -147,15 +170,15 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
               <div className="p-2 -m-2 rounded-full group-hover:bg-pink-500/10"><ThumbsDown className={cn("w-5 h-5", isDisliked && "fill-pink-500")} /></div>
               <span className="text-sm">{post.dislikes || 0}</span>
             </button>
-            <button className="flex items-center gap-2 hover:text-indigo-400 group transition-colors">
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><BarChart2 className="w-5 h-5" /></div>
+            <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
+              <div className="p-2 -m-2 rounded-full group-hover:bg-sky-500/10"><BarChart2 className="w-5 h-5" /></div>
               <span className="text-sm">{post.views || 0}</span>
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onShare(); }}
-              className="flex items-center gap-2 hover:text-indigo-400 group transition-colors"
+              className="flex items-center gap-2 hover:text-sky-400 group transition-colors"
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-indigo-500/10"><Share className="w-5 h-5" /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-sky-500/10"><Share className="w-5 h-5" /></div>
             </button>
           </div>
         </div>

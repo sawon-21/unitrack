@@ -43,7 +43,7 @@ export function StatusTrackerModal({ currentStatus, onClose, isAdmin, onUpdateSt
                 <div key={step} className="flex items-start gap-4 relative">
                   <div className="absolute -left-6 top-1 bg-slate-900 p-1">
                     {isCompleted ? (
-                      <CheckCircle2 className={cn("w-5 h-5", isCurrent ? "text-indigo-400" : "text-emerald-500")} />
+                      <CheckCircle2 className={cn("w-5 h-5", isCurrent ? "text-sky-400" : "text-emerald-500")} />
                     ) : (
                       <Circle className="w-5 h-5 text-slate-600" />
                     )}
@@ -51,7 +51,7 @@ export function StatusTrackerModal({ currentStatus, onClose, isAdmin, onUpdateSt
                   <div>
                     <h3 className={cn(
                       "font-semibold text-base",
-                      isCurrent ? "text-indigo-400" : isCompleted ? "text-slate-200" : "text-slate-500"
+                      isCurrent ? "text-sky-400" : isCompleted ? "text-slate-200" : "text-slate-500"
                     )}>
                       {step}
                     </h3>
@@ -70,7 +70,7 @@ export function StatusTrackerModal({ currentStatus, onClose, isAdmin, onUpdateSt
               <select 
                 value={currentStatus}
                 onChange={(e) => onUpdateStatus(e.target.value as Status)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-slate-100 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
               >
                 {STATUS_STEPS.map(s => <option key={s} value={s}>{s}</option>)}
                 <option value="Reopened">Reopened</option>

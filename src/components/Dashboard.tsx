@@ -69,16 +69,16 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
 
       <>
         {pinnedPosts.length > 0 && (
-            <div className="border-b border-slate-800 py-4 bg-indigo-950/10">
-              <h2 className="text-sm font-bold text-indigo-400 mb-3 px-4 flex items-center gap-2 uppercase tracking-wider">
-                <Pin className="w-4 h-4 fill-indigo-400" /> Pinned Announcements
+            <div className="border-b border-slate-800 py-4 bg-sky-950/10">
+              <h2 className="text-sm font-bold text-sky-400 mb-3 px-4 flex items-center gap-2 uppercase tracking-wider">
+                <Pin className="w-4 h-4 fill-sky-400" /> Pinned Announcements
               </h2>
               <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {pinnedPosts.map(post => (
                   <div 
                     key={post.id} 
                     onClick={() => onPostClick(post.id)} 
-                    className="min-w-[280px] max-w-[320px] snap-center bg-slate-900 border border-indigo-500/30 rounded-2xl p-4 shrink-0 cursor-pointer hover:bg-slate-800 transition-colors shadow-lg shadow-indigo-900/20"
+                    className="min-w-[280px] max-w-[320px] snap-center bg-slate-900 border border-sky-500/30 rounded-2xl p-4 shrink-0 cursor-pointer hover:bg-slate-800 transition-colors shadow-lg shadow-sky-900/20"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Avatar user={users[post.userId]} username={users[post.userId]?.username} className="w-6 h-6 text-[10px]" />
@@ -114,7 +114,7 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
             )}
             {displayCount < regularPosts.length && (
               <div ref={observerTarget} className="py-8 flex justify-center">
-                <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
@@ -122,7 +122,7 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
 
       <button 
         onClick={onOpenSubmit}
-        className="fixed bottom-20 right-6 w-14 h-14 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-transform hover:scale-105 active:scale-95 z-40"
+        className="fixed bottom-20 right-6 w-14 h-14 bg-sky-500 hover:bg-sky-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-sky-500/30 transition-transform hover:scale-105 active:scale-95 z-40"
       >
         <Plus className="w-6 h-6" />
       </button>
