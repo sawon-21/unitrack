@@ -14,9 +14,10 @@ interface AnalyticsDashboardProps {
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
+  onTagClick?: (tag: string) => void;
 }
 
-export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: AnalyticsDashboardProps) {
   const scrollDirection = useScrollDirection();
   // Filter out admin posts
   const userPosts = posts.filter(p => users[p.userId]?.role !== 'Admin');
@@ -88,6 +89,7 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
                 onRepost={() => onRepost(post.id)}
                 onShare={() => onShare(post.id)}
                 onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
+                onTagClick={onTagClick}
               />
             </div>
           </div>

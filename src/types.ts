@@ -34,6 +34,7 @@ export interface Post {
   lastRepostedAt?: string;
   imageUrl?: string;
   imageUrls?: string[];
+  tags?: string[];
 }
 
 export interface Comment {

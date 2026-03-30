@@ -26,9 +26,10 @@ interface PostDetailProps {
   onShare: () => void;
   onSignIn: () => void;
   onRepostersClick?: () => void;
+  onTagClick?: (tag: string) => void;
 }
 
-export function PostDetail({ post, author, comments, users, currentUser, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick }: PostDetailProps) {
+export function PostDetail({ post, author, comments, users, currentUser, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick, onTagClick }: PostDetailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollDirection = useScrollDirection(scrollRef);
   const [newComment, setNewComment] = useState('');
@@ -191,8 +192,36 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
           <h1 className="text-2xl font-bold text-slate-100 mb-2 leading-snug">{post.title}</h1>
           <hr className="border-slate-800 my-4" />
           <div className="text-slate-100 text-lg leading-relaxed mb-4 whitespace-pre-wrap prose prose-invert max-w-none">
-            <Markdown remarkPlugins={[remarkGfm]}>{post.description}</Markdown>
+            <Markdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({node, ...props}) => (
+                  <a {...props} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-block bg-slate-800 hover:bg-slate-700 text-sky-400 px-3 py-1 rounded-md text-sm font-medium transition-colors my-1 border border-slate-700 no-underline">
+                    🔗 Click to visit
+                  </a>
+                )
+              }}
+            >
+              {post.description}
+            </Markdown>
           </div>
+
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {post.tags.map(tag => (
+                <span 
+                  key={tag} 
+                  className="text-sm text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-3 py-1 rounded-full cursor-pointer transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onTagClick) onTagClick(tag);
+                  }}
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
 
           {images.length > 0 && (
             <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
@@ -257,9 +286,9 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
             </button>
             <button 
               onClick={currentUser ? onRepost : onSignIn}
-              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isReposted && "text-emerald-400")}
+              className={cn("flex items-center gap-2 hover:text-purple-400 group transition-colors", isReposted && "text-purple-400")}
             >
-              <div className="p-2 rounded-full group-hover:bg-emerald-500/10"><Repeat2 className="w-5 h-5" /></div>
+              <div className="p-2 rounded-full group-hover:bg-purple-500/10"><Repeat2 className="w-5 h-5" /></div>
               <span className="text-sm">{post.reposts || 0}</span>
             </button>
             <button 

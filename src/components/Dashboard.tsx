@@ -3,6 +3,9 @@ import { Plus, Pin } from 'lucide-react';
 import { PostCard } from './PostCard';
 import { Post, User } from '../types';
 import { Avatar } from './Avatar';
+import { useScrollDirection } from '../hooks/useScrollDirection';
+import { cn } from '../utils';
+import { motion } from 'framer-motion';
 
 interface DashboardProps {
   posts: Post[];
@@ -15,12 +18,14 @@ interface DashboardProps {
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
+  onTagClick?: (tag: string) => void;
 }
 
-export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onRepostersClick }: DashboardProps) {
+export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
 
+  const scrollDirection = useScrollDirection();
   const pinnedPosts = posts.filter(p => p.isPinned);
   const regularPosts = posts.filter(p => !p.isPinned);
 
@@ -49,7 +54,12 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
   };
 
   return (
-    <div className="pb-20 animate-in fade-in duration-200">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="pb-20"
+    >
       <div className="px-4 py-3 border-b border-slate-800">
         <div className="flex justify-between items-center bg-slate-900 rounded-2xl p-3">
           <div className="text-center flex-1 border-r border-slate-800">
@@ -105,6 +115,7 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
                 onRepost={() => onRepost(post.id)}
                 onShare={() => onShare(post.id)}
                 onRepostersClick={() => post.repostedBy && onRepostersClick(post.repostedBy)}
+                onTagClick={onTagClick}
               />
             ))}
             {posts.length === 0 && (
@@ -122,10 +133,13 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
 
       <button 
         onClick={onOpenSubmit}
-        className="fixed bottom-20 right-6 w-14 h-14 bg-sky-500 hover:bg-sky-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-sky-500/30 transition-transform hover:scale-105 active:scale-95 z-40"
+        className={cn(
+          "fixed bottom-20 right-6 w-14 h-14 bg-sky-500 hover:bg-sky-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-sky-500/30 transition-all duration-300 z-40",
+          scrollDirection === 'down' ? "translate-y-24 opacity-0 pointer-events-none" : "translate-y-0 opacity-100 hover:scale-105 active:scale-95"
+        )}
       >
         <Plus className="w-6 h-6" />
       </button>
-    </div>
+    </motion.div>
   );
 }

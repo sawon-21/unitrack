@@ -6,28 +6,46 @@ import { Avatar } from './Avatar';
 import Fuse from 'fuse.js';
 import { cn } from '../utils';
 import { useScrollDirection } from '../hooks/useScrollDirection';
+import { motion } from 'framer-motion';
 
 interface SearchScreenProps {
   posts: Post[];
   users: Record<string, User>;
   currentUser?: User;
+  initialQuery?: string;
   onPostClick: (id: string) => void;
   onLike: (id: string) => void;
   onDislike: (id: string) => void;
   onRepost: (id: string) => void;
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
+  onTagClick?: (tag: string) => void;
 }
 
-export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick }: SearchScreenProps) {
+export function SearchScreen({ posts, users, currentUser, initialQuery, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: SearchScreenProps) {
   const scrollDirection = useScrollDirection();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialQuery || '');
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery || '');
+
+  useEffect(() => {
+    if (initialQuery) {
+      setSearchQuery(initialQuery);
+      setDebouncedQuery(initialQuery);
+    }
+  }, [initialQuery]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const isUserSearch = searchQuery.startsWith('@');
-  const userQuery = isUserSearch ? searchQuery.slice(1).toLowerCase() : '';
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const isUserSearch = debouncedQuery.startsWith('@');
+  const isTagSearch = debouncedQuery.startsWith('#');
+  const userQuery = isUserSearch ? debouncedQuery.slice(1).toLowerCase() : '';
+  const tagQuery = isTagSearch ? debouncedQuery.slice(1).toLowerCase() : '';
   
   const userList = useMemo(() => Object.values(users), [users]);
   
@@ -45,7 +63,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     if (isUserSearch && suggestedUsers.length === 1 && suggestedUsers[0].username.toLowerCase() === userQuery) {
       setShowSuggestions(false);
     }
-  }, [searchQuery, suggestedUsers, isUserSearch, userQuery]);
+  }, [debouncedQuery, suggestedUsers, isUserSearch, userQuery]);
 
   const postsWithAuthor = useMemo(() => posts.map(post => ({
     ...post,
@@ -54,38 +72,47 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
 
   const postFuse = useMemo(() => new Fuse(postsWithAuthor, {
     keys: [
-      { name: 'title', weight: 2 },
+      { name: 'title', weight: 3 },
+      { name: 'category', weight: 2 },
       { name: 'description', weight: 1 },
-      { name: 'category', weight: 1.5 },
-      { name: 'authorUsername', weight: 2 },
+      { name: 'authorUsername', weight: 1.5 },
+      { name: 'tags', weight: 2.5 },
     ],
     threshold: 0.4,
     includeScore: true,
   }), [postsWithAuthor]);
 
   const filteredPosts = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    if (!debouncedQuery.trim()) return [];
     
     if (isUserSearch) {
       return postsWithAuthor.filter(post => post.authorUsername.toLowerCase().includes(userQuery));
     }
 
-    const results = postFuse.search(searchQuery);
+    if (isTagSearch && tagQuery.length > 0) {
+      return postsWithAuthor.filter(post => post.tags?.some(tag => tag.toLowerCase().includes(tagQuery)));
+    } else if (isTagSearch) {
+      return [];
+    }
+
+    const results = postFuse.search(debouncedQuery);
     
     // Boost score based on engagement
     const boostedResults = results.map(result => {
       const post = result.item;
-      const engagementScore = (post.likes || 0) * 2 + (post.reposts || 0) * 5 + (post.commentCount || 0) * 3 + Math.floor((post.views || 0) / 10);
+      // Engagement score calculation
+      const engagementScore = (post.likes || 0) * 3 + (post.reposts || 0) * 5 + (post.commentCount || 0) * 4 + Math.floor((post.views || 0) / 5);
       // Fuse score is 0 (perfect match) to 1 (no match). We invert it for our logic.
       const baseScore = (1 - (result.score || 0)) * 100;
-      const finalScore = baseScore + Math.min(engagementScore, 50);
+      // Combine base score with engagement score
+      const finalScore = baseScore + Math.min(engagementScore, 80);
       return { post, score: finalScore };
     });
 
     return boostedResults
       .sort((a, b) => b.score - a.score)
       .map(item => item.post);
-  }, [searchQuery, isUserSearch, userQuery, postFuse, postsWithAuthor]);
+  }, [debouncedQuery, isUserSearch, userQuery, postFuse, postsWithAuthor]);
 
   const handleUserSelect = (username: string) => {
     setSearchQuery(`@${username}`);
@@ -109,7 +136,12 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
     .slice(0, 10);
 
   return (
-    <div className="pb-20 animate-in fade-in duration-200">
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="pb-20"
+    >
       <div className={cn(
         "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
         scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
@@ -192,6 +224,7 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
               onRepost={() => onRepost(post.id)}
               onShare={() => onShare(post.id)}
               onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
+              onTagClick={onTagClick}
             />
           ))
         ) : (
@@ -200,6 +233,6 @@ export function SearchScreen({ posts, users, currentUser, onPostClick, onLike, o
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }

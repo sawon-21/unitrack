@@ -5,13 +5,13 @@
 
 import { useState, useEffect } from 'react';
 import { Home, Search, Bell, LayoutDashboard, User as UserIcon, LogIn } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
 import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { PostDetail } from './components/PostDetail';
-import { PostSubmissionModal } from './components/PostSubmissionModal';
+import { CreatePostScreen } from './components/CreatePostScreen';
 import { SearchScreen } from './components/SearchScreen';
 import { NotificationsScreen } from './components/NotificationsScreen';
 import { ProfileScreen } from './components/ProfileScreen';
@@ -21,21 +21,22 @@ import { AuthModal } from './components/AuthModal';
 import { playNotificationSound } from './lib/sound';
 import { Post, Comment, Category, AppNotification, User } from './types';
 import { cn } from './utils';
-import { auth, db, logOut } from './firebase';
+import { auth, db, storage, logOut } from './firebase';
 import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { useScrollDirection } from './hooks/useScrollDirection';
 
-type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail';
+type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail' | 'create';
 
 export default function App() {
   const scrollDirection = useScrollDirection();
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [initialSearchQuery, setInitialSearchQuery] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -307,11 +308,35 @@ export default function App() {
     }
   }, [isOffline]);
 
-  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[]) => {
+  const handleTagClick = (tag: string) => {
+    setInitialSearchQuery(`#${tag}`);
+    setCurrentScreen('search');
+    setSelectedPostId(null);
+    setHighlightCommentId(null);
+  };
+
+  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[], tags?: string[]) => {
     if (!currentUser) return;
     
     const newPostId = db && !isOffline ? doc(collection(db, 'posts')).id : Math.random().toString(36).substring(7);
     
+    let uploadedImageUrls: string[] = [];
+    if (imageUrls && imageUrls.length > 0 && !isOffline) {
+      try {
+        const uploadPromises = imageUrls.map(async (dataUrl, index) => {
+          const imageRef = ref(storage, `posts/${newPostId}/image_${index}.jpg`);
+          await uploadString(imageRef, dataUrl, 'data_url');
+          return getDownloadURL(imageRef);
+        });
+        uploadedImageUrls = await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error("Error uploading images:", error);
+        toast.error("Failed to upload images. Post created without them.");
+      }
+    } else if (imageUrls && imageUrls.length > 0) {
+      uploadedImageUrls = imageUrls; // Keep base64 if offline
+    }
+
     const newPost: Post = {
       id: newPostId,
       title,
@@ -326,18 +351,22 @@ export default function App() {
       dislikes: 0,
       reposts: 0,
       views: 0,
-      ...(imageUrls && imageUrls.length > 0 && { imageUrls })
+      ...(uploadedImageUrls.length > 0 && { imageUrls: uploadedImageUrls }),
+      ...(tags && tags.length > 0 && { tags })
     };
 
     if (isOffline || !db) {
       offlineService.addAction({ type: 'post', payload: newPost });
       setPosts(prev => [newPost, ...prev]);
+      setCurrentScreen('dashboard');
       return;
     }
     
     const newPostRef = doc(db, 'posts', newPostId);
     try {
       await setDoc(newPostRef, newPost);
+      toast.success("Post created successfully!");
+      setCurrentScreen('dashboard');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `posts/${newPostId}`);
     }
@@ -719,116 +748,136 @@ export default function App() {
       )}
       
       <main className="max-w-3xl mx-auto w-full relative">
-        {currentScreen === 'dashboard' && (
-          <Dashboard 
-            posts={displayedPosts} 
-            users={users} 
-            currentUser={currentUser || undefined}
-            onPostClick={handlePostClick} 
-            onOpenSubmit={() => {
-              if (!currentUser) handleSignIn();
-              else setIsSubmitModalOpen(true);
-            }}
-            onLike={(id) => handleLike(id, false)}
-            onDislike={(id) => handleDislike(id, false)}
-            onRepost={handleRepost}
-            onShare={handleShare}
-            onRepostersClick={handleRepostersClick}
-          />
-        )}
-        
-        {currentScreen === 'search' && (
-          <SearchScreen 
-            posts={posts} 
-            users={users} 
-            currentUser={currentUser || undefined}
-            onPostClick={handlePostClick} 
-            onLike={(id) => handleLike(id, false)}
-            onDislike={(id) => handleDislike(id, false)}
-            onRepost={handleRepost}
-            onShare={handleShare}
-            onRepostersClick={handleRepostersClick}
-          />
-        )}
+        <AnimatePresence mode="wait">
+          {currentScreen === 'dashboard' && (
+            <Dashboard 
+              key="dashboard"
+              posts={displayedPosts} 
+              users={users} 
+              currentUser={currentUser || undefined}
+              onPostClick={handlePostClick} 
+              onOpenSubmit={() => {
+                if (!currentUser) handleSignIn();
+                else setCurrentScreen('create');
+              }}
+              onLike={(id) => handleLike(id, false)}
+              onDislike={(id) => handleDislike(id, false)}
+              onRepost={handleRepost}
+              onShare={handleShare}
+              onRepostersClick={handleRepostersClick}
+              onTagClick={handleTagClick}
+            />
+          )}
+          
+          {currentScreen === 'search' && (
+            <SearchScreen 
+              key="search"
+              posts={posts} 
+              users={users} 
+              currentUser={currentUser || undefined}
+              initialQuery={initialSearchQuery}
+              onPostClick={handlePostClick} 
+              onLike={(id) => handleLike(id, false)}
+              onDislike={(id) => handleDislike(id, false)}
+              onRepost={handleRepost}
+              onShare={handleShare}
+              onRepostersClick={handleRepostersClick}
+              onTagClick={handleTagClick}
+            />
+          )}
 
-        {currentScreen === 'analytics' && (
-          <AnalyticsDashboard 
-            posts={posts} 
-            users={users} 
-            currentUser={currentUser || undefined}
-            onPostClick={handlePostClick} 
-            onLike={(id) => handleLike(id, false)}
-            onDislike={(id) => handleDislike(id, false)}
-            onRepost={handleRepost}
-            onShare={handleShare}
-            onRepostersClick={handleRepostersClick}
-          />
-        )}
+          {currentScreen === 'analytics' && (
+            <motion.div key="analytics" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <AnalyticsDashboard 
+                posts={posts} 
+                users={users} 
+                currentUser={currentUser || undefined}
+                onPostClick={handlePostClick} 
+                onLike={(id) => handleLike(id, false)}
+                onDislike={(id) => handleDislike(id, false)}
+                onRepost={handleRepost}
+                onShare={handleShare}
+                onRepostersClick={handleRepostersClick}
+                onTagClick={handleTagClick}
+              />
+            </motion.div>
+          )}
 
-        {currentScreen === 'notifications' && currentUser && (
-          <NotificationsScreen 
-            notifications={notifications} 
-            users={users} 
-            onNotificationClick={handleNotificationClick}
-            onMarkAllRead={handleMarkAllRead}
-          />
-        )}
+          {currentScreen === 'notifications' && currentUser && (
+            <motion.div key="notifications" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <NotificationsScreen 
+                notifications={notifications} 
+                users={users} 
+                onNotificationClick={handleNotificationClick}
+                onMarkAllRead={handleMarkAllRead}
+              />
+            </motion.div>
+          )}
 
-        {currentScreen === 'profile' && currentUser && (
-          <ProfileScreen 
-            currentUser={currentUser}
-            users={users}
-            onLogout={() => setShowLogoutConfirm(true)}
-          />
-        )}
+          {currentScreen === 'profile' && currentUser && (
+            <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <ProfileScreen 
+                currentUser={currentUser}
+                users={users}
+                onLogout={() => setShowLogoutConfirm(true)}
+              />
+            </motion.div>
+          )}
 
-        {currentScreen === 'profile' && !currentUser && (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-            <UserIcon className="w-16 h-16 text-slate-700 mb-4" />
-            <h2 className="text-xl font-bold text-slate-100 mb-2">Sign in to your account</h2>
-            <p className="text-slate-400 mb-6 max-w-sm">Sign in to react, comment, and create your own posts on UniTrack.</p>
-            <button 
-              onClick={handleSignIn}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-full font-bold transition-colors flex items-center gap-2"
-            >
-              <LogIn className="w-5 h-5" /> Sign in with Google
-            </button>
-          </div>
-        )}
+          {currentScreen === 'profile' && !currentUser && (
+            <motion.div key="profile-login" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center py-20 px-4 text-center">
+              <UserIcon className="w-16 h-16 text-slate-700 mb-4" />
+              <h2 className="text-xl font-bold text-slate-100 mb-2">Sign in to your account</h2>
+              <p className="text-slate-400 mb-6 max-w-sm">Sign in to react, comment, and create your own posts on UniTrack.</p>
+              <button 
+                onClick={handleSignIn}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-full font-bold transition-colors flex items-center gap-2"
+              >
+                <LogIn className="w-5 h-5" /> Sign in with Google
+              </button>
+            </motion.div>
+          )}
 
-        {currentScreen === 'detail' && selectedPost && (
-          <PostDetail 
-            post={selectedPost} 
-            author={users[selectedPost.userId]} 
-            comments={postComments} 
-            users={users} 
-            currentUser={currentUser || undefined}
-            highlightCommentId={highlightCommentId}
-            onBack={() => { 
-              setCurrentScreen('dashboard'); 
-              setSelectedPostId(null); 
-              setHighlightCommentId(null); 
-              history.pushState('', document.title, window.location.pathname + window.location.search);
-            }} 
-            onAddComment={handleAddComment}
-            onLike={() => handleLike(selectedPost.id, false)}
-            onDislike={() => handleDislike(selectedPost.id, false)}
-            onCommentLike={(id) => handleLike(id, true)}
-            onCommentDislike={(id) => handleDislike(id, true)}
-            onRepost={() => handleRepost(selectedPost.id)}
-            onShare={() => handleShare(selectedPost.id)}
-            onSignIn={handleSignIn}
-            onRepostersClick={() => selectedPost.repostedBy && setRepostersList(selectedPost.repostedBy)}
-          />
-        )}
+          {currentScreen === 'detail' && selectedPost && (
+            <motion.div key="detail" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <PostDetail 
+                post={selectedPost} 
+                author={users[selectedPost.userId]} 
+                comments={postComments} 
+                users={users} 
+                currentUser={currentUser || undefined}
+                highlightCommentId={highlightCommentId}
+                onBack={() => { 
+                  setCurrentScreen('dashboard'); 
+                  setSelectedPostId(null); 
+                  setHighlightCommentId(null); 
+                  history.pushState('', document.title, window.location.pathname + window.location.search);
+                }} 
+                onAddComment={handleAddComment}
+                onLike={() => handleLike(selectedPost.id, false)}
+                onDislike={() => handleDislike(selectedPost.id, false)}
+                onCommentLike={(id) => handleLike(id, true)}
+                onCommentDislike={(id) => handleDislike(id, true)}
+                onRepost={() => handleRepost(selectedPost.id)}
+                onShare={() => handleShare(selectedPost.id)}
+                onSignIn={handleSignIn}
+                onRepostersClick={() => selectedPost.repostedBy && setRepostersList(selectedPost.repostedBy)}
+                onTagClick={handleTagClick}
+              />
+            </motion.div>
+          )}
+
+          {currentScreen === 'create' && currentUser && (
+            <motion.div key="create" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <CreatePostScreen
+                onBack={() => setCurrentScreen('dashboard')}
+                onSubmit={handleCreatePost}
+                currentUser={currentUser}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
-
-      {isSubmitModalOpen && currentUser && (
-        <PostSubmissionModal 
-          onClose={() => setIsSubmitModalOpen(false)} 
-          onSubmit={handleCreatePost} 
-        />
-      )}
 
       {showLogoutConfirm && (
         <ConfirmModal

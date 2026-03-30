@@ -19,9 +19,10 @@ interface PostCardProps {
   onRepost: () => void;
   onShare: () => void;
   onRepostersClick?: () => void;
+  onTagClick?: (tag: string) => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onRepostersClick }) => {
+export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
   const isAnonymous = post.isAnonymous;
@@ -96,8 +97,36 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
           <hr className="border-slate-800 my-2" />
           
           <div className="text-slate-300 mt-1 text-base leading-normal line-clamp-3 prose prose-invert prose-sm max-w-none">
-            <Markdown remarkPlugins={[remarkGfm]}>{post.description}</Markdown>
+            <Markdown 
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: ({node, ...props}) => (
+                  <a {...props} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-block bg-slate-800 hover:bg-slate-700 text-sky-400 px-3 py-1 rounded-md text-sm font-medium transition-colors my-1 border border-slate-700 no-underline">
+                    🔗 Click to visit
+                  </a>
+                )
+              }}
+            >
+              {post.description}
+            </Markdown>
           </div>
+
+          {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {post.tags.map(tag => (
+                <span 
+                  key={tag} 
+                  className="text-xs text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-2 py-0.5 rounded-full cursor-pointer transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onTagClick) onTagClick(tag);
+                  }}
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
 
           {images.length > 0 && (
             <div className={cn("mt-3 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
@@ -151,9 +180,9 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             </button>
             <button 
               onClick={(e) => { e.stopPropagation(); onRepost(); }}
-              className={cn("flex items-center gap-2 hover:text-emerald-400 group transition-colors", isReposted && "text-emerald-400")}
+              className={cn("flex items-center gap-2 hover:text-purple-400 group transition-colors", isReposted && "text-purple-400")}
             >
-              <div className="p-2 -m-2 rounded-full group-hover:bg-emerald-500/10"><Repeat2 className="w-5 h-5" /></div>
+              <div className="p-2 -m-2 rounded-full group-hover:bg-purple-500/10"><Repeat2 className="w-5 h-5" /></div>
               <span className="text-sm">{post.reposts || 0}</span>
             </button>
             <button 
