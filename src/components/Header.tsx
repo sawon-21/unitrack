@@ -3,8 +3,8 @@ import { cn } from '../utils';
 import { useScrollDirection } from '../hooks/useScrollDirection';
 
 interface HeaderProps {
-  activeTab: 'all' | 'my';
-  onTabChange: (tab: 'all' | 'my') => void;
+  activeTab: 'all' | 'my' | 'trending';
+  onTabChange: (tab: 'all' | 'my' | 'trending') => void;
 }
 
 export function Header({ activeTab, onTabChange }: HeaderProps) {
@@ -28,6 +28,16 @@ export function Header({ activeTab, onTabChange }: HeaderProps) {
         >
           For you
           {activeTab === 'all' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-sky-500 rounded-full" />}
+        </button>
+        <button
+          onClick={() => onTabChange('trending')}
+          className={cn(
+            "flex-1 pt-1 pb-2 text-sm font-bold hover:bg-slate-900 transition-colors relative",
+            activeTab === 'trending' ? "text-slate-100" : "text-slate-500"
+          )}
+        >
+          Trending
+          {activeTab === 'trending' && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-sky-500 rounded-full" />}
         </button>
         <button
           onClick={() => onTabChange('my')}

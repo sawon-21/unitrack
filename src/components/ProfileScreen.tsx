@@ -29,7 +29,7 @@ export function ProfileScreen({ currentUser, users, onLogout }: ProfileScreenPro
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-2xl font-bold text-slate-100">@{currentUser.username}</h2>
           {currentUser.role === 'Admin' && (
-            <BadgeCheck className="w-6 h-6 text-blue-500 fill-blue-500" />
+            <BadgeCheck className="w-6 h-6 text-white fill-[#1877F2]" />
           )}
         </div>
         <div className="flex gap-2">

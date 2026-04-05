@@ -26,8 +26,22 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
   const observerTarget = useRef<HTMLDivElement>(null);
 
   const scrollDirection = useScrollDirection();
-  const pinnedPosts = posts.filter(p => p.isPinned);
-  const regularPosts = posts.filter(p => !p.isPinned);
+  const { pinnedPosts, regularPosts, uniquePosts, stats } = React.useMemo(() => {
+    const pinned = posts.filter(p => p.isPinned);
+    const regular = posts.filter(p => !p.isPinned);
+    const unique = posts.filter(p => !p.originalPostId);
+    
+    return {
+      pinnedPosts: pinned,
+      regularPosts: regular,
+      uniquePosts: unique,
+      stats: {
+        total: unique.length,
+        resolved: unique.filter(p => p.status === 'Resolved').length,
+        pending: unique.filter(p => p.status !== 'Resolved').length,
+      }
+    };
+  }, [posts]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -45,13 +59,6 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
     
     return () => observer.disconnect();
   }, [regularPosts.length]);
-
-  const uniquePosts = posts.filter(p => !p.originalPostId);
-  const stats = {
-    total: uniquePosts.length,
-    resolved: uniquePosts.filter(p => p.status === 'Resolved').length,
-    pending: uniquePosts.filter(p => p.status !== 'Resolved').length,
-  };
 
   return (
     <motion.div 

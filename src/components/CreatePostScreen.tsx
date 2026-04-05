@@ -20,6 +20,8 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
   const [tags, setTags] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingImages, setIsProcessingImages] = useState(false);
 
   // Load draft from localStorage on mount
   useEffect(() => {
@@ -32,7 +34,10 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
         if (parsed.category) setCategory(parsed.category);
         if (parsed.isAnonymous !== undefined) setIsAnonymous(parsed.isAnonymous);
         if (parsed.imageUrls) setImageUrls(parsed.imageUrls);
-        if (parsed.tags) setTags(parsed.tags);
+        if (parsed.tags) {
+          setTags(parsed.tags);
+          setTagsInput(parsed.tags.map((t: string) => `#${t}`).join(' '));
+        }
       } catch (e) {
         console.error("Failed to parse draft", e);
       }
@@ -42,7 +47,11 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
   // Save draft to localStorage on change
   useEffect(() => {
     const draft = { title, description, category, isAnonymous, imageUrls, tags };
-    localStorage.setItem('postDraft', JSON.stringify(draft));
+    try {
+      localStorage.setItem('postDraft', JSON.stringify(draft));
+    } catch (e) {
+      console.warn('Failed to save draft to localStorage, possibly due to quota exceeded:', e);
+    }
   }, [title, description, category, isAnonymous, imageUrls, tags]);
 
   const handleTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,23 +63,31 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
     setTags(parsedTags);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
-    onSubmit(
-      title, 
-      description, 
-      category, 
-      isAnonymous, 
-      imageUrls.length > 0 ? imageUrls : undefined,
-      tags.length > 0 ? tags : undefined
-    );
-    // Clear draft after successful submit
-    localStorage.removeItem('postDraft');
+    if (!title.trim() || !description.trim() || isSubmitting) return;
+    
+    setIsSubmitting(true);
+    try {
+      await onSubmit(
+        title, 
+        description, 
+        category, 
+        isAnonymous, 
+        imageUrls.length > 0 ? imageUrls : undefined,
+        tags.length > 0 ? tags : undefined
+      );
+      // Clear draft after successful submit
+      localStorage.removeItem('postDraft');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const processFiles = (files: File[]) => {
     if (files.length === 0) return;
+    setIsProcessingImages(true);
+    let processedCount = 0;
 
     files.forEach(file => {
       const reader = new FileReader();
@@ -78,8 +95,8 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800;
-          const MAX_HEIGHT = 800;
+          const MAX_WIDTH = 600;
+          const MAX_HEIGHT = 600;
           let width = img.width;
           let height = img.height;
 
@@ -99,8 +116,13 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           setImageUrls(prev => [...prev, dataUrl]);
+          
+          processedCount++;
+          if (processedCount === files.length) {
+            setIsProcessingImages(false);
+          }
         };
         img.src = event.target?.result as string;
       };
@@ -291,6 +313,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
                         src={url} 
                         alt={`Preview ${index + 1}`} 
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
                       />
                       <button
                         type="button"
@@ -341,10 +364,22 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
           <button 
             type="submit"
             form="create-post-form"
-            disabled={!title.trim() || !description.trim()}
-            className="px-6 py-2.5 rounded-lg font-bold bg-sky-500 hover:bg-sky-600 text-white transition-colors shadow-lg shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!title.trim() || !description.trim() || isSubmitting || isProcessingImages}
+            className="px-6 py-2.5 rounded-lg font-bold bg-sky-500 hover:bg-sky-600 text-white transition-colors shadow-lg shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Submit Post
+            {isSubmitting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Posting...
+              </>
+            ) : isProcessingImages ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Processing Images...
+              </>
+            ) : (
+              'Submit Post'
+            )}
           </button>
         </div>
       </div>

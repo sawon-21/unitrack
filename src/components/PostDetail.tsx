@@ -107,7 +107,7 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
           <div className="flex items-center gap-1.5 text-base truncate">
             <span className="font-bold text-slate-300 truncate hover:underline">@{cHandle}</span>
             {commentAuthor?.role === 'Admin' && (
-              <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
+              <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
             )}
             <span className="text-slate-500">·</span>
             <span className="text-slate-500 shrink-0 hover:underline">
@@ -184,7 +184,7 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
             <div className="flex items-center gap-1.5">
               <h2 className="font-bold text-slate-400 text-base">@{authorHandle}</h2>
               {!isAnonymous && author?.role === 'Admin' && (
-                <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
+                <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
               )}
             </div>
           </div>
@@ -239,6 +239,7 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
                     alt={`Attachment ${index + 1}`} 
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                   {index === 1 && images.length > 2 && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">

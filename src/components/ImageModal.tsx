@@ -75,6 +75,7 @@ export function ImageModal({ imageUrls, initialIndex = 0, onClose }: ImageModalP
           alt={`Zoomed image ${currentIndex + 1}`}
           className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
           onClick={(e) => e.stopPropagation()}
+          referrerPolicy="no-referrer"
         />
       </motion.div>
     </AnimatePresence>

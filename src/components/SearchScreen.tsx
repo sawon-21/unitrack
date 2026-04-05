@@ -117,7 +117,6 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
   const handleUserSelect = (username: string) => {
     setSearchQuery(`@${username}`);
     setShowSuggestions(false);
-    if (inputRef.current) inputRef.current.focus();
   };
 
   // Hide suggestions when clicking outside
@@ -157,7 +156,15 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
               setSearchQuery(e.target.value);
               setShowSuggestions(e.target.value.startsWith('@'));
             }}
-            onFocus={() => setShowSuggestions(searchQuery.startsWith('@'))}
+            onFocus={() => {
+              if (searchQuery.startsWith('@')) {
+                const query = searchQuery.slice(1).toLowerCase();
+                const isExactMatch = suggestedUsers.length === 1 && suggestedUsers[0].username.toLowerCase() === query;
+                if (!isExactMatch) {
+                  setShowSuggestions(true);
+                }
+              }
+            }}
             className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
           />
           
@@ -166,14 +173,17 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
               {suggestedUsers.map(user => (
                 <div 
                   key={user.id}
-                  onClick={() => handleUserSelect(user.username)}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleUserSelect(user.username);
+                  }}
                   className="flex items-center gap-3 p-3 hover:bg-slate-800 cursor-pointer transition-colors border-b border-slate-800/50 last:border-0"
                 >
                   <Avatar user={user} username={user.username} className="w-8 h-8 text-xs" />
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-200">@{user.username}</span>
                     {user.role === 'Admin' && (
-                      <BadgeCheck className="w-4 h-4 text-blue-500 fill-blue-500" />
+                      <BadgeCheck className="w-4 h-4 text-white fill-[#1877F2]" />
                     )}
                   </div>
                 </div>

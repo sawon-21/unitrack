@@ -36,26 +36,29 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated() && isOwner(request.resource.data.get('userId', null));
       allow update: if 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'viewedBy'])) ||
-        (isAuthenticated() && (
+        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'viewedBy'])) ||
+        (isAuthenticated() && resource != null && (
           (isOwner(resource.data.get('userId', null)) && request.resource.data.get('userId', null) == resource.data.get('userId', null)) ||
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy', 'lastRepostedAt'])) ||
           isAdmin()
         ));
-      allow delete: if isOwner(resource.data.get('userId', null)) || isAdmin();
+      allow delete: if resource != null && (isOwner(resource.data.get('userId', null)) || isAdmin());
     }
 
     match /comments/{commentId} {
       allow read: if true;
       allow create: if isAuthenticated() && isOwner(request.resource.data.get('userId', null));
-      allow update: if isAuthenticated() && (
+      allow update: if isAuthenticated() && resource != null && (
         (isOwner(resource.data.get('userId', null)) && request.resource.data.get('userId', null) == resource.data.get('userId', null)) ||
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'likedBy', 'dislikedBy']))
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'likedBy', 'dislikedBy'])) ||
+        isAdmin()
       );
-      allow delete: if isOwner(resource.data.get('userId', null)) || 
-                       (exists(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))) && 
-                        isOwner(get(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))).data.get('userId', null))) || 
-                       isAdmin();
+      allow delete: if resource != null && (
+        isOwner(resource.data.get('userId', null)) || 
+        (exists(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))) && 
+         isOwner(get(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))).data.get('userId', null))) || 
+        isAdmin()
+      );
     }
 
     match /notifications/{notificationId} {

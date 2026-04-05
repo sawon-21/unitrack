@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Home, Search, Bell, LayoutDashboard, User as UserIcon, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
@@ -24,7 +24,7 @@ import { cn } from './utils';
 import { auth, db, storage, logOut } from './firebase';
 import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where, limit } from 'firebase/firestore';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { useScrollDirection } from './hooks/useScrollDirection';
@@ -38,9 +38,7 @@ export default function App() {
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [initialSearchQuery, setInitialSearchQuery] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
-  const [isLoading, setIsLoading] = useState(true);
-
+  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'trending'>('all');
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
       const cached = localStorage.getItem('cached_posts');
@@ -49,11 +47,31 @@ export default function App() {
       return [];
     }
   });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('cached_posts');
+    } catch {
+      return true;
+    }
+  });
   const [comments, setComments] = useState<Comment[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [users, setUsers] = useState<Record<string, User>>({});
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem('cached_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAuthReady, setIsAuthReady] = useState(() => {
+    try {
+      return !!localStorage.getItem('cached_user');
+    } catch {
+      return false;
+    }
+  });
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -149,11 +167,21 @@ export default function App() {
             userData = userSnap.data() as User;
           }
           setCurrentUser(userData);
+          try {
+            localStorage.setItem('cached_user', JSON.stringify(userData));
+          } catch (e) {
+            console.error("Error saving user to localStorage", e);
+          }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
         }
       } else {
         setCurrentUser(null);
+        try {
+          localStorage.removeItem('cached_user');
+        } catch (e) {
+          console.error("Error removing user from localStorage", e);
+        }
       }
       setIsAuthReady(true);
     });
@@ -164,7 +192,7 @@ export default function App() {
   useEffect(() => {
     if (!db) return;
 
-    const postsQuery = query(collection(db, 'posts'));
+    const postsQuery = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(100));
     const unsubscribePosts = onSnapshot(postsQuery, (snapshot) => {
       let postsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Post));
       postsData.sort((a, b) => {
@@ -186,15 +214,7 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, 'posts');
     });
 
-    const commentsQuery = query(collection(db, 'comments'), orderBy('createdAt', 'asc'));
-    const unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
-      const commentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
-      setComments(commentsData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'comments');
-    });
-
-    const usersQuery = collection(db, 'users');
+    const usersQuery = query(collection(db, 'users'), limit(500));
     const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
       const usersData: Record<string, User> = {};
       snapshot.docs.forEach(doc => {
@@ -207,10 +227,31 @@ export default function App() {
 
     return () => {
       unsubscribePosts();
-      unsubscribeComments();
       unsubscribeUsers();
     };
   }, []);
+
+  useEffect(() => {
+    if (!db || !selectedPostId) {
+      setComments([]);
+      return;
+    }
+
+    const commentsQuery = query(
+      collection(db, 'comments'), 
+      where('postId', '==', selectedPostId),
+      orderBy('createdAt', 'asc')
+    );
+    
+    const unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
+      const commentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Comment));
+      setComments(commentsData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'comments');
+    });
+
+    return () => unsubscribeComments();
+  }, [selectedPostId]);
 
   useEffect(() => {
     if (!db || !currentUser) {
@@ -226,7 +267,8 @@ export default function App() {
     const notifQuery = query(
       collection(db, 'notifications'),
       where('userId', '==', currentUser.id),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(50)
     );
     const unsubscribeNotifs = onSnapshot(notifQuery, (snapshot) => {
       const notifsData = snapshot.docs
@@ -330,8 +372,8 @@ export default function App() {
         });
         uploadedImageUrls = await Promise.all(uploadPromises);
       } catch (error) {
-        console.error("Error uploading images:", error);
-        toast.error("Failed to upload images. Post created without them.");
+        console.error("Error uploading images to Storage, falling back to direct save:", error);
+        uploadedImageUrls = imageUrls; // Fallback to base64
       }
     } else if (imageUrls && imageUrls.length > 0) {
       uploadedImageUrls = imageUrls; // Keep base64 if offline
@@ -630,9 +672,19 @@ export default function App() {
     }
   };
 
-  const displayedPosts = activeTab === 'my' && currentUser
-    ? posts.filter(p => p.userId === currentUser.id)
-    : posts;
+  const displayedPosts = useMemo(() => {
+    if (activeTab === 'my' && currentUser) {
+      return posts.filter(p => p.userId === currentUser.id);
+    }
+    if (activeTab === 'trending') {
+      return [...posts].sort((a, b) => {
+        const scoreA = (a.likes || 0) * 2 + (a.reposts || 0) * 3 + (a.commentCount || 0) * 4 + Math.floor((a.views || 0) / 10);
+        const scoreB = (b.likes || 0) * 2 + (b.reposts || 0) * 3 + (b.commentCount || 0) * 4 + Math.floor((b.views || 0) / 10);
+        return scoreB - scoreA;
+      });
+    }
+    return posts;
+  }, [posts, activeTab, currentUser]);
 
   const selectedPost = posts.find(p => p.id === selectedPostId);
   const postComments = comments.filter(c => c.postId === selectedPostId).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());

@@ -81,7 +81,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
             <div className="flex items-center gap-1.5 text-base truncate">
               <span className="font-bold text-slate-400 truncate hover:underline">@{authorHandle}</span>
               {!isAnonymous && author?.role === 'Admin' && (
-                <BadgeCheck className="w-5 h-5 text-blue-500 fill-blue-500" />
+                <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
               )}
               <span className="text-slate-500">·</span>
               <span className="text-slate-500 shrink-0 hover:underline">
@@ -145,6 +145,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
                     alt={`Attachment ${index + 1}`} 
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
                   />
                   {index === 1 && images.length > 2 && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
