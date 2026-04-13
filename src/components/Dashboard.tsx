@@ -19,9 +19,25 @@ interface DashboardProps {
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
   onTagClick?: (tag: string) => void;
+  onStatusClick?: (status: string) => void;
+  onCategoryClick?: (category: string) => void;
 }
 
-export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: DashboardProps) {
+export function Dashboard({ 
+  posts, 
+  users, 
+  currentUser, 
+  onPostClick, 
+  onOpenSubmit, 
+  onLike, 
+  onDislike, 
+  onRepost, 
+  onShare, 
+  onRepostersClick, 
+  onTagClick,
+  onStatusClick,
+  onCategoryClick
+}: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
 
@@ -60,6 +76,32 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
     return () => observer.disconnect();
   }, [regularPosts.length]);
 
+  const pinnedScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pinnedPosts.length <= 1) return;
+    
+    const scrollContainer = pinnedScrollRef.current;
+    if (!scrollContainer) return;
+
+    const scrollInterval = setInterval(() => {
+      const { scrollLeft, clientWidth, scrollWidth } = scrollContainer;
+      
+      // If we're near the end of the first set of items
+      if (scrollLeft + clientWidth >= scrollWidth / 2) {
+        // Jump back to the start without animation to create seamless loop
+        scrollContainer.scrollLeft = 0;
+      }
+      
+      scrollContainer.scrollBy({ left: 200, behavior: 'smooth' });
+    }, 4000);
+
+    return () => clearInterval(scrollInterval);
+  }, [pinnedPosts.length]);
+
+  // Duplicate posts for infinite scroll effect
+  const infinitePinnedPosts = [...pinnedPosts, ...pinnedPosts];
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -68,18 +110,27 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
       className="pb-20"
     >
       <div className="px-4 py-3 border-b border-slate-800">
-        <div className="flex justify-between items-center bg-slate-900 rounded-2xl p-3">
-          <div className="text-center flex-1 border-r border-slate-800">
-            <div className="text-lg font-bold text-slate-100">{stats.total}</div>
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Total</div>
+        <div className="flex justify-around items-center">
+          <div 
+            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onStatusClick && onStatusClick('All')}
+          >
+            <div className="text-sm font-black text-slate-100">{stats.total}</div>
+            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Total</div>
           </div>
-          <div className="text-center flex-1 border-r border-slate-800">
-            <div className="text-lg font-bold text-emerald-500">{stats.resolved}</div>
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Resolved</div>
+          <div 
+            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onStatusClick && onStatusClick('Resolved')}
+          >
+            <div className="text-sm font-black text-emerald-500">{stats.resolved}</div>
+            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Resolved</div>
           </div>
-          <div className="text-center flex-1">
-            <div className="text-lg font-bold text-orange-500">{stats.pending}</div>
-            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Pending</div>
+          <div 
+            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => onStatusClick && onStatusClick('Pending')}
+          >
+            <div className="text-sm font-black text-orange-500">{stats.pending}</div>
+            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Pending</div>
           </div>
         </div>
       </div>
@@ -88,12 +139,15 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
         {pinnedPosts.length > 0 && (
             <div className="border-b border-slate-800 py-4 bg-sky-950/10">
               <h2 className="text-sm font-bold text-sky-400 mb-3 px-4 flex items-center gap-2 uppercase tracking-wider">
-                <Pin className="w-4 h-4 fill-sky-400" /> Pinned Announcements
+                <Pin className="w-4 h-4 fill-sky-400" /> Pinned
               </h2>
-              <div className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                {pinnedPosts.map(post => (
+              <div 
+                ref={pinnedScrollRef}
+                className="flex gap-4 overflow-x-auto snap-x snap-mandatory px-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] scroll-smooth"
+              >
+                {infinitePinnedPosts.map((post, idx) => (
                   <div 
-                    key={post.id} 
+                    key={`${post.id}-${idx}`} 
                     onClick={() => onPostClick(post.id)} 
                     className="min-w-[280px] max-w-[320px] snap-center bg-slate-900 border border-sky-500/30 rounded-2xl p-4 shrink-0 cursor-pointer hover:bg-slate-800 transition-colors shadow-lg shadow-sky-900/20"
                   >
@@ -123,6 +177,8 @@ export function Dashboard({ posts, users, currentUser, onPostClick, onOpenSubmit
                 onShare={() => onShare(post.id)}
                 onRepostersClick={() => post.repostedBy && onRepostersClick(post.repostedBy)}
                 onTagClick={onTagClick}
+                onStatusClick={onStatusClick}
+                onCategoryClick={onCategoryClick}
               />
             ))}
             {posts.length === 0 && (

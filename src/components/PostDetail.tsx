@@ -27,9 +27,31 @@ interface PostDetailProps {
   onSignIn: () => void;
   onRepostersClick?: () => void;
   onTagClick?: (tag: string) => void;
+  onStatusClick?: (status: string) => void;
+  onCategoryClick?: (category: string) => void;
 }
 
-export function PostDetail({ post, author, comments, users, currentUser, highlightCommentId, onBack, onAddComment, onLike, onDislike, onCommentLike, onCommentDislike, onRepost, onShare, onSignIn, onRepostersClick, onTagClick }: PostDetailProps) {
+export function PostDetail({ 
+  post, 
+  author, 
+  comments, 
+  users, 
+  currentUser, 
+  highlightCommentId, 
+  onBack, 
+  onAddComment, 
+  onLike, 
+  onDislike, 
+  onCommentLike, 
+  onCommentDislike, 
+  onRepost, 
+  onShare, 
+  onSignIn, 
+  onRepostersClick, 
+  onTagClick,
+  onStatusClick,
+  onCategoryClick
+}: PostDetailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollDirection = useScrollDirection(scrollRef);
   const [newComment, setNewComment] = useState('');
@@ -207,11 +229,11 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
           </div>
 
           {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-1 mb-4">
               {post.tags.map(tag => (
                 <span 
                   key={tag} 
-                  className="text-sm text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-3 py-1 rounded-full cursor-pointer transition-colors"
+                  className="text-[10px] text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-2 py-0.5 rounded-full cursor-pointer transition-colors font-medium"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (onTagClick) onTagClick(tag);
@@ -222,6 +244,71 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
               ))}
             </div>
           )}
+
+          {/* Tracing Line */}
+          <div className="mb-6 bg-slate-900/50 rounded-xl p-4 border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Activity className="w-3 h-3 text-sky-500" /> Tracing Status
+              </h3>
+              <span 
+                className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer hover:opacity-80 transition-opacity", statusColors[post.status])}
+                onClick={() => onStatusClick && onStatusClick(post.status)}
+              >
+                {post.status}
+              </span>
+            </div>
+            
+            <div className="relative flex justify-between items-center px-2">
+              {/* Background Line */}
+              <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-slate-800 z-0 mx-6" />
+              
+              {/* Progress Line */}
+              <div 
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-sky-500 z-0 mx-6 transition-all duration-1000" 
+                style={{ 
+                  width: post.status === 'Resolved' ? 'calc(100% - 48px)' : 
+                         post.status === 'Dev In-Progress' ? '75%' :
+                         post.status === 'Investigating' ? '50%' :
+                         post.status === 'Acknowledged' ? '25%' : '0%'
+                }}
+              />
+
+              {[
+                { id: 'New', label: 'New' },
+                { id: 'Acknowledged', label: 'Ack' },
+                { id: 'Investigating', label: 'Invest' },
+                { id: 'Dev In-Progress', label: 'Dev' },
+                { id: 'Resolved', label: 'Done' }
+              ].map((step, idx) => {
+                const stepOrder = ['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'];
+                const currentIdx = stepOrder.indexOf(post.status === 'Reopened' ? 'Dev In-Progress' : post.status);
+                const isCompleted = idx <= currentIdx;
+                const isCurrent = idx === currentIdx;
+
+                return (
+                  <div key={step.id} className="relative z-10 flex flex-col items-center">
+                    <div className={cn(
+                      "w-3 h-3 rounded-full border-2 transition-all duration-500",
+                      isCompleted ? "bg-sky-500 border-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" : "bg-slate-900 border-slate-700",
+                      isCurrent && "scale-125 ring-4 ring-sky-500/20"
+                    )} />
+                    <span className={cn(
+                      "text-[8px] mt-2 font-bold uppercase tracking-tighter transition-colors",
+                      isCompleted ? "text-sky-400" : "text-slate-600"
+                    )}>
+                      {step.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="mt-4 flex items-center justify-between text-[10px] text-slate-500 font-medium">
+              <span>{['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].indexOf(post.status) + 1} steps overcome</span>
+              <span>{post.status === 'Resolved' ? 'Completed' : 'Processing...'}</span>
+            </div>
+          </div>
 
           {images.length > 0 && (
             <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
@@ -259,10 +346,16 @@ export function PostDetail({ post, author, comments, users, currentUser, highlig
 
           {showStatus && (
             <div className="flex items-center gap-2 mb-4">
-              <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
+              <span 
+                className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer hover:opacity-80 transition-opacity", statusColors[post.status])}
+                onClick={() => onStatusClick && onStatusClick(post.status)}
+              >
                 {post.status}
               </span>
-              <span className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5">
+              <span 
+                className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5 cursor-pointer hover:bg-slate-800 transition-colors"
+                onClick={() => onCategoryClick && onCategoryClick(post.category)}
+              >
                 {post.category}
               </span>
             </div>

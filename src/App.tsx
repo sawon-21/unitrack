@@ -38,7 +38,7 @@ export default function App() {
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [initialSearchQuery, setInitialSearchQuery] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'trending'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'my' | 'track'>('all');
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
       const cached = localStorage.getItem('cached_posts');
@@ -352,6 +352,26 @@ export default function App() {
 
   const handleTagClick = (tag: string) => {
     setInitialSearchQuery(`#${tag}`);
+    setCurrentScreen('search');
+    setSelectedPostId(null);
+    setHighlightCommentId(null);
+  };
+
+  const handleStatusClick = (status: string) => {
+    if (status === 'All') {
+      setInitialSearchQuery('');
+    } else if (status === 'Pending') {
+      setInitialSearchQuery('status:pending');
+    } else {
+      setInitialSearchQuery(`status:${status.toLowerCase()}`);
+    }
+    setCurrentScreen('search');
+    setSelectedPostId(null);
+    setHighlightCommentId(null);
+  };
+
+  const handleCategoryClick = (category: string) => {
+    setInitialSearchQuery(`category:${category.toLowerCase()}`);
     setCurrentScreen('search');
     setSelectedPostId(null);
     setHighlightCommentId(null);
@@ -676,12 +696,10 @@ export default function App() {
     if (activeTab === 'my' && currentUser) {
       return posts.filter(p => p.userId === currentUser.id);
     }
-    if (activeTab === 'trending') {
-      return [...posts].sort((a, b) => {
-        const scoreA = (a.likes || 0) * 2 + (a.reposts || 0) * 3 + (a.commentCount || 0) * 4 + Math.floor((a.views || 0) / 10);
-        const scoreB = (b.likes || 0) * 2 + (b.reposts || 0) * 3 + (b.commentCount || 0) * 4 + Math.floor((b.views || 0) / 10);
-        return scoreB - scoreA;
-      });
+    if (activeTab === 'track') {
+      return [...posts]
+        .filter(p => p.status !== 'New')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
     return posts;
   }, [posts, activeTab, currentUser]);
@@ -728,7 +746,7 @@ export default function App() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-500 via-purple-500 to-pink-500 tracking-tighter mb-4"
+          className="text-5xl font-black text-gradient tracking-tighter mb-6 font-display"
         >
           UniTrack
         </motion.div>
@@ -755,10 +773,11 @@ export default function App() {
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="flex flex-col items-center gap-4"
         >
-          <div className="w-20 h-20 bg-sky-500 rounded-2xl flex items-center justify-center shadow-2xl shadow-sky-500/50">
-            <span className="text-4xl font-bold text-white">U</span>
+          <div className="w-24 h-24 bg-gradient-to-br from-sky-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-sky-500/40 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+            <span className="text-5xl font-black text-white relative z-10 font-display italic">U</span>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-widest uppercase">UniTrack</h1>
+          <h1 className="text-4xl font-black text-white tracking-widest uppercase font-display text-gradient">UniTrack</h1>
         </motion.div>
       </div>
     );
@@ -818,6 +837,8 @@ export default function App() {
               onShare={handleShare}
               onRepostersClick={handleRepostersClick}
               onTagClick={handleTagClick}
+              onStatusClick={handleStatusClick}
+              onCategoryClick={handleCategoryClick}
             />
           )}
           
@@ -835,6 +856,8 @@ export default function App() {
               onShare={handleShare}
               onRepostersClick={handleRepostersClick}
               onTagClick={handleTagClick}
+              onStatusClick={handleStatusClick}
+              onCategoryClick={handleCategoryClick}
             />
           )}
 
@@ -915,6 +938,8 @@ export default function App() {
                 onSignIn={handleSignIn}
                 onRepostersClick={() => selectedPost.repostedBy && setRepostersList(selectedPost.repostedBy)}
                 onTagClick={handleTagClick}
+                onStatusClick={handleStatusClick}
+                onCategoryClick={handleCategoryClick}
               />
             </motion.div>
           )}

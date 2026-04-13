@@ -20,9 +20,24 @@ interface PostCardProps {
   onShare: () => void;
   onRepostersClick?: () => void;
   onTagClick?: (tag: string) => void;
+  onStatusClick?: (status: string) => void;
+  onCategoryClick?: (category: string) => void;
 }
 
-export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, onClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }) => {
+export const PostCard: React.FC<PostCardProps> = ({ 
+  post, 
+  author, 
+  currentUser, 
+  onClick, 
+  onLike, 
+  onDislike, 
+  onRepost, 
+  onShare, 
+  onRepostersClick, 
+  onTagClick,
+  onStatusClick,
+  onCategoryClick
+}) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
   const isAnonymous = post.isAnonymous;
@@ -112,11 +127,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
           </div>
 
           {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {post.tags.map(tag => (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {post.tags.slice(0, 3).map(tag => (
                 <span 
                   key={tag} 
-                  className="text-xs text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-2 py-0.5 rounded-full cursor-pointer transition-colors"
+                  className="text-[10px] text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-1.5 py-0.5 rounded-full cursor-pointer transition-colors font-medium"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (onTagClick) onTagClick(tag);
@@ -125,6 +140,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
                   #{tag}
                 </span>
               ))}
+              {post.tags.length > 3 && (
+                <span className="text-[10px] text-slate-500 px-1 py-0.5">
+                  +{post.tags.length - 3} more
+                </span>
+              )}
             </div>
           )}
 
@@ -165,11 +185,23 @@ export const PostCard: React.FC<PostCardProps> = ({ post, author, currentUser, o
 
           <div className="flex items-center gap-2 mt-3">
             {showStatus && (
-              <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[post.status])}>
+              <span 
+                className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border cursor-pointer hover:opacity-80 transition-opacity", statusColors[post.status])}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onStatusClick) onStatusClick(post.status);
+                }}
+              >
                 {post.status}
               </span>
             )}
-            <span className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5">
+            <span 
+              className="text-xs text-slate-500 border border-slate-800 rounded px-2 py-0.5 cursor-pointer hover:bg-slate-800 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onCategoryClick) onCategoryClick(post.category);
+              }}
+            >
               {post.category}
             </span>
           </div>

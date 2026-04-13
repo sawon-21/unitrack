@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, ArrowLeft, BadgeCheck } from 'lucide-react';
+import { Search, ArrowLeft, BadgeCheck, Activity } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
 import { PostCard } from './PostCard';
 import { Post, User } from '../types';
 import { Avatar } from './Avatar';
@@ -20,32 +21,46 @@ interface SearchScreenProps {
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
   onTagClick?: (tag: string) => void;
+  onStatusClick?: (status: string) => void;
+  onCategoryClick?: (category: string) => void;
 }
 
-export function SearchScreen({ posts, users, currentUser, initialQuery, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: SearchScreenProps) {
+export function SearchScreen({ 
+  posts, 
+  users, 
+  currentUser, 
+  initialQuery, 
+  onPostClick, 
+  onLike, 
+  onDislike, 
+  onRepost, 
+  onShare, 
+  onRepostersClick, 
+  onTagClick,
+  onStatusClick,
+  onCategoryClick
+}: SearchScreenProps) {
   const scrollDirection = useScrollDirection();
   const [searchQuery, setSearchQuery] = useState(initialQuery || '');
   const [debouncedQuery, setDebouncedQuery] = useState(initialQuery || '');
-
-  useEffect(() => {
-    if (initialQuery) {
-      setSearchQuery(initialQuery);
-      setDebouncedQuery(initialQuery);
-    }
-  }, [initialQuery]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+      if (searchQuery.includes('@')) {
+        setShowUserDropdown(true);
+      } else {
+        setShowUserDropdown(false);
+      }
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const isUserSearch = debouncedQuery.startsWith('@');
-  const isTagSearch = debouncedQuery.startsWith('#');
-  const userQuery = isUserSearch ? debouncedQuery.slice(1).toLowerCase() : '';
-  const tagQuery = isTagSearch ? debouncedQuery.slice(1).toLowerCase() : '';
+  const atIndex = searchQuery.lastIndexOf('@');
+  const userSearchPart = atIndex !== -1 ? searchQuery.slice(atIndex + 1).toLowerCase() : '';
   
   const userList = useMemo(() => Object.values(users), [users]);
   
@@ -54,16 +69,19 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
     threshold: 0.3,
   }), [userList]);
 
-  const suggestedUsers = isUserSearch && userQuery.length > 0
-    ? userFuse.search(userQuery).map(result => result.item)
-    : [];
+  const suggestedUsers = atIndex !== -1 && userSearchPart.length > 0
+    ? userFuse.search(userSearchPart).map(result => result.item)
+    : atIndex !== -1 ? userList.slice(0, 5) : [];
 
-  // Hide suggestions if exact match
-  useEffect(() => {
-    if (isUserSearch && suggestedUsers.length === 1 && suggestedUsers[0].username.toLowerCase() === userQuery) {
-      setShowSuggestions(false);
-    }
-  }, [debouncedQuery, suggestedUsers, isUserSearch, userQuery]);
+  const isUserSearch = debouncedQuery.startsWith('@');
+  const isTagSearch = debouncedQuery.startsWith('#');
+  const isStatusSearch = debouncedQuery.startsWith('status:');
+  const isCategorySearch = debouncedQuery.startsWith('category:');
+
+  const userQuery = isUserSearch ? debouncedQuery.slice(1).toLowerCase() : '';
+  const tagQuery = isTagSearch ? debouncedQuery.slice(1).toLowerCase() : '';
+  const statusQuery = isStatusSearch ? debouncedQuery.slice(7).toLowerCase() : '';
+  const categoryQuery = isCategorySearch ? debouncedQuery.slice(9).toLowerCase() : '';
 
   const postsWithAuthor = useMemo(() => posts.map(post => ({
     ...post,
@@ -95,6 +113,14 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
       return [];
     }
 
+    if (isStatusSearch) {
+      return postsWithAuthor.filter(post => post.status.toLowerCase() === statusQuery);
+    }
+
+    if (isCategorySearch) {
+      return postsWithAuthor.filter(post => post.category.toLowerCase() === categoryQuery);
+    }
+
     const results = postFuse.search(debouncedQuery);
     
     // Boost score based on engagement
@@ -112,27 +138,41 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
     return boostedResults
       .sort((a, b) => b.score - a.score)
       .map(item => item.post);
-  }, [debouncedQuery, isUserSearch, userQuery, postFuse, postsWithAuthor]);
+  }, [debouncedQuery, isUserSearch, userQuery, postFuse, postsWithAuthor, isTagSearch, tagQuery]);
 
   const handleUserSelect = (username: string) => {
-    setSearchQuery(`@${username}`);
-    setShowSuggestions(false);
+    const beforeAt = searchQuery.slice(0, atIndex);
+    setSearchQuery(`${beforeAt}@${username} `);
+    setShowUserDropdown(false);
+    inputRef.current?.focus();
   };
 
   // Hide suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
+        setShowUserDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const trendingPosts = [...posts]
-    .sort((a, b) => (b.likes + b.reposts * 2 + b.commentCount * 3 + Math.floor(b.views / 10)) - (a.likes + a.reposts * 2 + a.commentCount * 3 + Math.floor(a.views / 10)))
-    .slice(0, 10);
+  const trackPosts = useMemo(() => {
+    return [...posts]
+      .filter(p => p.status !== 'New')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+  }, [posts]);
+
+  const statusColors: Record<string, string> = {
+    'New': 'bg-teal-500',
+    'Acknowledged': 'bg-yellow-500',
+    'Investigating': 'bg-orange-500',
+    'Dev In-Progress': 'bg-purple-500',
+    'Resolved': 'bg-emerald-500',
+    'Reopened': 'bg-blue-500',
+  };
 
   return (
     <motion.div 
@@ -142,7 +182,7 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
       className="pb-20"
     >
       <div className={cn(
-        "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
+        "sticky top-0 z-20 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
         scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
       )}>
         <div className="relative" ref={containerRef}>
@@ -152,24 +192,12 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
             type="text" 
             placeholder="Search issues or @username..." 
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setShowSuggestions(e.target.value.startsWith('@'));
-            }}
-            onFocus={() => {
-              if (searchQuery.startsWith('@')) {
-                const query = searchQuery.slice(1).toLowerCase();
-                const isExactMatch = suggestedUsers.length === 1 && suggestedUsers[0].username.toLowerCase() === query;
-                if (!isExactMatch) {
-                  setShowSuggestions(true);
-                }
-              }
-            }}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
           />
           
-          {showSuggestions && suggestedUsers.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-xl overflow-hidden z-20">
+          {showUserDropdown && suggestedUsers.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-30 max-h-60 overflow-y-auto">
               {suggestedUsers.map(user => (
                 <div 
                   key={user.id}
@@ -197,27 +225,31 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
         {!searchQuery.trim() ? (
           <div className="py-6 px-4">
             <h2 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
-              <span className="text-sky-500">#</span> Trending
+              <Activity className="w-5 h-5 text-sky-500" /> Track Status
             </h2>
             <div className="space-y-3">
-              {trendingPosts.map((post, index) => (
+              {trackPosts.map((post) => (
                 <div 
                   key={post.id}
                   onClick={() => onPostClick(post.id)}
-                  className="flex items-start gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors"
+                  className="flex items-start gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors group"
                 >
-                  <span className="text-2xl font-black text-slate-700 w-6 text-center">{index + 1}</span>
+                  <div className={cn("w-1.5 h-12 rounded-full shrink-0", statusColors[post.status])} />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-200 truncate">{post.title}</h3>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> {post.likes} likes</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span> {post.commentCount} comments</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{post.status}</span>
+                      <span className="text-[10px] text-slate-600">{formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}</span>
+                    </div>
+                    <h3 className="font-bold text-slate-200 truncate group-hover:text-sky-400 transition-colors">{post.title}</h3>
+                    <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500 font-medium">
+                      <span className="flex items-center gap-1">#{post.category}</span>
+                      <span className="flex items-center gap-1">{post.commentCount} comments</span>
                     </div>
                   </div>
                 </div>
               ))}
-              {trendingPosts.length === 0 && (
-                <p className="text-slate-500 text-center py-8">No trending posts yet.</p>
+              {trackPosts.length === 0 && (
+                <p className="text-slate-500 text-center py-8">No tracing status available yet.</p>
               )}
             </div>
           </div>
@@ -235,6 +267,8 @@ export function SearchScreen({ posts, users, currentUser, initialQuery, onPostCl
               onShare={() => onShare(post.id)}
               onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
               onTagClick={onTagClick}
+              onStatusClick={onStatusClick}
+              onCategoryClick={onCategoryClick}
             />
           ))
         ) : (

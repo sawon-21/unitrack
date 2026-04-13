@@ -58,9 +58,11 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
     const value = e.target.value;
     setTagsInput(value);
     
-    // Parse tags by space or comma
-    const parsedTags = value.split(/[\s,]+/).filter(t => t.trim() !== '').map(t => t.replace(/^#/, ''));
-    setTags(parsedTags);
+    // Parse tags by space or comma, allowing multiple separators
+    const parsedTags = value.split(/[\s,]+/).filter(t => t.trim() !== '').map(t => t.replace(/^#/, '').toLowerCase());
+    // Remove duplicates
+    const uniqueTags = Array.from(new Set(parsedTags));
+    setTags(uniqueTags);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,8 +97,8 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 600;
-          const MAX_HEIGHT = 600;
+          const MAX_WIDTH = 2000; // Increased to 2000 for high quality
+          const MAX_HEIGHT = 2000; // Increased to 2000 for high quality
           let width = img.width;
           let height = img.height;
 
@@ -116,7 +118,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
           canvas.height = height;
           const ctx = canvas.getContext('2d');
           ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // Increased quality to 0.9
           setImageUrls(prev => [...prev, dataUrl]);
           
           processedCount++;
