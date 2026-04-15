@@ -416,11 +416,26 @@ export default function App() {
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
+            const errorText = await response.text();
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (e) {
+              console.error("Non-JSON error response:", errorText);
+              throw new Error(`Server error (${response.status}): ${errorText.substring(0, 50)}...`);
+            }
             throw new Error(errorData.error || 'Upload failed');
           }
 
-          const data = await response.json();
+          const responseText = await response.text();
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            console.error("Non-JSON success response:", responseText);
+            throw new Error(`Invalid server response: ${responseText.substring(0, 50)}...`);
+          }
+          
           uploadedImageUrls.push(data.secure_url);
         }
       } catch (error) {

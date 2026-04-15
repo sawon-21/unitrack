@@ -34,27 +34,47 @@ async function startServer() {
   app.use(express.json());
 
   // API Route for secure image upload
-  app.post("/api/upload", upload.single("file"), async (req: any, res: any) => {
+  app.post("/api/upload", (req, res, next) => {
+    console.log("Received POST request to /api/upload");
+    upload.single("file")(req, res, (err) => {
+      if (err) {
+        console.error("Multer error:", err);
+        return res.status(400).json({ error: err.message });
+      }
+      next();
+    });
+  }, async (req: any, res: any) => {
+    console.log("Processing upload request, file present:", !!req.file);
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      // Upload to Cloudinary using the secure server-side preset or direct upload
-      // Since we are server-side, we can use the API key/secret directly
       const b64 = Buffer.from(req.file.buffer).toString("base64");
       let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
-      
-      const result = await cloudinary.uploader.upload(dataURI, {
-        folder: "unitrack/posts",
-        resource_type: "auto",
-      });
 
-      res.json({ secure_url: result.secure_url });
+      // If Cloudinary is not configured, just return the base64 data URI
+      if (!apiKey || !apiSecret) {
+        console.warn("Cloudinary not configured. Returning base64 data URI.");
+        return res.json({ secure_url: dataURI });
+      }
+
+      // Upload to Cloudinary
+      try {
+        const result = await cloudinary.uploader.upload(dataURI, {
+          folder: "unitrack/posts",
+          resource_type: "auto",
+        });
+        res.json({ secure_url: result.secure_url });
+      } catch (cloudinaryError: any) {
+        console.error("Cloudinary upload failed, falling back to base64. Error:", cloudinaryError);
+        // Fallback to base64 if Cloudinary fails
+        res.json({ secure_url: dataURI });
+      }
     } catch (error: any) {
       console.error("Upload error details:", error);
       res.status(500).json({ 
-        error: "Failed to upload image to Cloudinary",
+        error: "Failed to process image upload",
         details: error.message || String(error)
       });
     }
@@ -74,6 +94,16 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
+
+  // Global error handler to ensure JSON responses for API errors
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Express error:", err);
+    if (req.path.startsWith('/api/')) {
+      res.status(500).json({ error: err.message || "Internal Server Error" });
+    } else {
+      next(err);
+    }
+  });
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
