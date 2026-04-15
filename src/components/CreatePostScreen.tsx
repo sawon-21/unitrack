@@ -6,7 +6,7 @@ import { PostCard } from './PostCard';
 
 interface CreatePostScreenProps {
   onBack: () => void;
-  onSubmit: (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[], tags?: string[]) => void;
+  onSubmit: (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[], tags?: string[], imageFiles?: File[]) => void;
   currentUser: User;
 }
 
@@ -16,6 +16,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
   const [category, setCategory] = useState<Category>('Academics');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [tagsInput, setTagsInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -34,6 +35,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
         if (parsed.category) setCategory(parsed.category);
         if (parsed.isAnonymous !== undefined) setIsAnonymous(parsed.isAnonymous);
         if (parsed.imageUrls) setImageUrls(parsed.imageUrls);
+        // Note: imageFiles cannot be restored from localStorage easily
         if (parsed.tags) {
           setTags(parsed.tags);
           setTagsInput(parsed.tags.map((t: string) => `#${t}`).join(' '));
@@ -77,7 +79,8 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
         category, 
         isAnonymous, 
         imageUrls.length > 0 ? imageUrls : undefined,
-        tags.length > 0 ? tags : undefined
+        tags.length > 0 ? tags : undefined,
+        imageFiles.length > 0 ? imageFiles : undefined
       );
       // Clear draft after successful submit
       localStorage.removeItem('postDraft');
@@ -89,44 +92,28 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
   const processFiles = (files: File[]) => {
     if (files.length === 0) return;
     setIsProcessingImages(true);
-    let processedCount = 0;
+    
+    // Keep original files for upload
+    setImageFiles(prev => [...prev, ...files]);
 
+    let processedCount = 0;
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 2000; // Increased to 2000 for high quality
-          const MAX_HEIGHT = 2000; // Increased to 2000 for high quality
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.9); // Increased quality to 0.9
-          setImageUrls(prev => [...prev, dataUrl]);
-          
-          processedCount++;
-          if (processedCount === files.length) {
-            setIsProcessingImages(false);
-          }
-        };
-        img.src = event.target?.result as string;
+        const dataUrl = event.target?.result as string;
+        setImageUrls(prev => [...prev, dataUrl]);
+        
+        processedCount++;
+        if (processedCount === files.length) {
+          setIsProcessingImages(false);
+        }
+      };
+      reader.onerror = () => {
+        console.error("Failed to read file");
+        processedCount++;
+        if (processedCount === files.length) {
+          setIsProcessingImages(false);
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -156,6 +143,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
 
   const removeImage = (index: number) => {
     setImageUrls(prev => prev.filter((_, i) => i !== index));
+    setImageFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   // Mock post for preview
@@ -305,7 +293,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
                     className="hidden"
                   />
                 </label>
-                <p className="text-xs text-slate-500 mt-3">Images are automatically compressed for fast upload.</p>
+                <p className="text-xs text-slate-500 mt-3">Images are uploaded in original high quality.</p>
               </div>
               {imageUrls.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">

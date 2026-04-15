@@ -23,6 +23,7 @@ interface SearchScreenProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
+  restoreScrollPosition?: () => void;
 }
 
 export function SearchScreen({ 
@@ -38,7 +39,8 @@ export function SearchScreen({
   onRepostersClick, 
   onTagClick,
   onStatusClick,
-  onCategoryClick
+  onCategoryClick,
+  restoreScrollPosition
 }: SearchScreenProps) {
   const scrollDirection = useScrollDirection();
   const [searchQuery, setSearchQuery] = useState(initialQuery || '');
@@ -46,6 +48,21 @@ export function SearchScreen({
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pointerDownPos = useRef<{x: number, y: number} | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerDownPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent, id: string) => {
+    if (!pointerDownPos.current) return;
+    const dx = Math.abs(e.clientX - pointerDownPos.current.x);
+    const dy = Math.abs(e.clientY - pointerDownPos.current.y);
+    if (dx < 10 && dy < 10) {
+      onPostClick(id);
+    }
+    pointerDownPos.current = null;
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -78,10 +95,10 @@ export function SearchScreen({
   const isStatusSearch = debouncedQuery.startsWith('status:');
   const isCategorySearch = debouncedQuery.startsWith('category:');
 
-  const userQuery = isUserSearch ? debouncedQuery.slice(1).toLowerCase() : '';
-  const tagQuery = isTagSearch ? debouncedQuery.slice(1).toLowerCase() : '';
-  const statusQuery = isStatusSearch ? debouncedQuery.slice(7).toLowerCase() : '';
-  const categoryQuery = isCategorySearch ? debouncedQuery.slice(9).toLowerCase() : '';
+  const userQuery = isUserSearch ? debouncedQuery.slice(1).toLowerCase().trim() : '';
+  const tagQuery = isTagSearch ? debouncedQuery.slice(1).toLowerCase().trim() : '';
+  const statusQuery = isStatusSearch ? debouncedQuery.slice(7).toLowerCase().trim() : '';
+  const categoryQuery = isCategorySearch ? debouncedQuery.slice(9).toLowerCase().trim() : '';
 
   const postsWithAuthor = useMemo(() => posts.map(post => ({
     ...post,
@@ -121,7 +138,7 @@ export function SearchScreen({
       return postsWithAuthor.filter(post => post.category.toLowerCase() === categoryQuery);
     }
 
-    const results = postFuse.search(debouncedQuery);
+    const results = postFuse.search(debouncedQuery.trim());
     
     // Boost score based on engagement
     const boostedResults = results.map(result => {
@@ -142,7 +159,7 @@ export function SearchScreen({
 
   const handleUserSelect = (username: string) => {
     const beforeAt = searchQuery.slice(0, atIndex);
-    setSearchQuery(`${beforeAt}@${username} `);
+    setSearchQuery(`${beforeAt}@${username}`);
     setShowUserDropdown(false);
     inputRef.current?.focus();
   };
@@ -179,6 +196,9 @@ export function SearchScreen({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
+      onAnimationComplete={() => {
+        if (restoreScrollPosition) restoreScrollPosition();
+      }}
       className="pb-20"
     >
       <div className={cn(
@@ -231,16 +251,23 @@ export function SearchScreen({
               {trackPosts.map((post) => (
                 <div 
                   key={post.id}
-                  onClick={() => onPostClick(post.id)}
+                  onPointerDown={handlePointerDown}
+                  onPointerUp={(e) => handlePointerUp(e, post.id)}
                   className="flex items-start gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors group"
                 >
-                  <div className={cn("w-1.5 h-12 rounded-full shrink-0", statusColors[post.status])} />
-                  <div className="flex-1 min-w-0">
+                  <div className={cn("w-1.5 rounded-full shrink-0 self-stretch min-h-[48px]", statusColors[post.status])} />
+                  <div className="flex-1 min-w-0 py-0.5">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{post.status}</span>
                       <span className="text-[10px] text-slate-600">{formatDistanceToNow(new Date(post.createdAt), { addSuffix: true })}</span>
                     </div>
                     <h3 className="font-bold text-slate-200 truncate group-hover:text-sky-400 transition-colors">{post.title}</h3>
+                    {post.statusMessage && (
+                      <p className="text-xs text-slate-400 mt-1.5 line-clamp-2 leading-relaxed">
+                        <span className="font-bold text-sky-400 mr-1">Update:</span>
+                        {post.statusMessage}
+                      </p>
+                    )}
                     <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500 font-medium">
                       <span className="flex items-center gap-1">#{post.category}</span>
                       <span className="flex items-center gap-1">{post.commentCount} comments</span>

@@ -9,9 +9,10 @@ interface ProfileScreenProps {
   currentUser: User;
   users: Record<string, User>;
   onLogout?: () => void;
+  onGenerateDemoPost?: () => void;
 }
 
-export function ProfileScreen({ currentUser, users, onLogout }: ProfileScreenProps) {
+export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost }: ProfileScreenProps) {
   const scrollDirection = useScrollDirection();
 
   return (
@@ -53,6 +54,17 @@ export function ProfileScreen({ currentUser, users, onLogout }: ProfileScreenPro
               <span className="font-medium">Account Preferences</span>
             </div>
           </button>
+          {currentUser.role === 'Admin' && onGenerateDemoPost && (
+            <button 
+              onClick={onGenerateDemoPost}
+              className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-sky-400"
+            >
+              <div className="flex items-center gap-3">
+                <BadgeCheck className="w-5 h-5" />
+                <span className="font-medium">Generate Demo Post</span>
+              </div>
+            </button>
+          )}
           <button 
             onClick={onLogout}
             className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-red-400"

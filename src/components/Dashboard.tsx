@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Pin } from 'lucide-react';
 import { PostCard } from './PostCard';
+import { SkeletonPost } from './SkeletonPost';
 import { Post, User } from '../types';
 import { Avatar } from './Avatar';
 import { useScrollDirection } from '../hooks/useScrollDirection';
@@ -21,6 +22,8 @@ interface DashboardProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
+  isLoading?: boolean;
+  restoreScrollPosition?: () => void;
 }
 
 export function Dashboard({ 
@@ -36,7 +39,9 @@ export function Dashboard({
   onRepostersClick, 
   onTagClick,
   onStatusClick,
-  onCategoryClick
+  onCategoryClick,
+  isLoading,
+  restoreScrollPosition
 }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(5);
   const observerTarget = useRef<HTMLDivElement>(null);
@@ -44,7 +49,8 @@ export function Dashboard({
   const scrollDirection = useScrollDirection();
   const { pinnedPosts, regularPosts, uniquePosts, stats } = React.useMemo(() => {
     const pinned = posts.filter(p => p.isPinned);
-    const regular = posts.filter(p => !p.isPinned);
+    // Pinned posts should also appear in the regular feed as requested
+    const regular = posts; 
     const unique = posts.filter(p => !p.originalPostId);
     
     return {
@@ -107,30 +113,39 @@ export function Dashboard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
+      onAnimationComplete={() => {
+        if (restoreScrollPosition) restoreScrollPosition();
+      }}
       className="pb-20"
     >
-      <div className="px-4 py-3 border-b border-slate-800">
-        <div className="flex justify-around items-center">
+      <div className="px-4 py-3">
+        <div className="bg-[#0A0F1E] border border-slate-800/40 rounded-2xl py-3 px-4 flex justify-between items-center shadow-2xl">
           <div 
-            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex-1 text-center cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => onStatusClick && onStatusClick('All')}
           >
-            <div className="text-sm font-black text-slate-100">{stats.total}</div>
-            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Total</div>
+            <div className="text-base font-black text-white mb-0.5 tracking-tight">{stats.total}</div>
+            <div className="text-[9px] text-slate-500 uppercase font-extrabold tracking-[0.15em]">Total</div>
           </div>
+          
+          <div className="w-[1px] h-8 bg-slate-800/30" />
+          
           <div 
-            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex-1 text-center cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => onStatusClick && onStatusClick('Resolved')}
           >
-            <div className="text-sm font-black text-emerald-500">{stats.resolved}</div>
-            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Resolved</div>
+            <div className="text-base font-black text-[#10B981] mb-0.5 tracking-tight">{stats.resolved}</div>
+            <div className="text-[9px] text-slate-500 uppercase font-extrabold tracking-[0.15em]">Resolved</div>
           </div>
+          
+          <div className="w-[1px] h-8 bg-slate-800/30" />
+          
           <div 
-            className="text-center cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex-1 text-center cursor-pointer hover:opacity-80 transition-opacity"
             onClick={() => onStatusClick && onStatusClick('Pending')}
           >
-            <div className="text-sm font-black text-orange-500">{stats.pending}</div>
-            <div className="text-[8px] text-slate-500 uppercase font-bold tracking-tighter">Pending</div>
+            <div className="text-base font-black text-[#F97316] mb-0.5 tracking-tight">{stats.pending}</div>
+            <div className="text-[9px] text-slate-500 uppercase font-extrabold tracking-[0.15em]">Pending</div>
           </div>
         </div>
       </div>
@@ -164,27 +179,42 @@ export function Dashboard({
           )}
           
           <div className="flex flex-col">
-            {regularPosts.slice(0, displayCount).map(post => (
-              <PostCard 
-                key={post.id} 
-                post={post} 
-                author={users[post.userId]} 
-                currentUser={currentUser}
-                onClick={() => onPostClick(post.id)} 
-                onLike={() => onLike(post.id)}
-                onDislike={() => onDislike(post.id)}
-                onRepost={() => onRepost(post.id)}
-                onShare={() => onShare(post.id)}
-                onRepostersClick={() => post.repostedBy && onRepostersClick(post.repostedBy)}
-                onTagClick={onTagClick}
-                onStatusClick={onStatusClick}
-                onCategoryClick={onCategoryClick}
-              />
-            ))}
-            {posts.length === 0 && (
-              <div className="text-center text-slate-500 py-10">
-                No posts found.
+            {isLoading && posts.length > 0 && (
+              <div className="flex justify-center py-2">
+                <div className="text-[10px] text-sky-500/50 animate-pulse uppercase tracking-widest font-black">Updating Feed...</div>
               </div>
+            )}
+            {isLoading && posts.length === 0 ? (
+              <>
+                <SkeletonPost />
+                <SkeletonPost />
+                <SkeletonPost />
+              </>
+            ) : (
+              <>
+                {regularPosts.slice(0, displayCount).map(post => (
+                  <PostCard 
+                    key={post.id} 
+                    post={post} 
+                    author={users[post.userId]} 
+                    currentUser={currentUser}
+                    onClick={() => onPostClick(post.id)} 
+                    onLike={() => onLike(post.id)}
+                    onDislike={() => onDislike(post.id)}
+                    onRepost={() => onRepost(post.id)}
+                    onShare={() => onShare(post.id)}
+                    onRepostersClick={() => post.repostedBy && onRepostersClick(post.repostedBy)}
+                    onTagClick={onTagClick}
+                    onStatusClick={onStatusClick}
+                    onCategoryClick={onCategoryClick}
+                  />
+                ))}
+                {posts.length === 0 && !isLoading && (
+                  <div className="text-center text-slate-500 py-10">
+                    No posts found.
+                  </div>
+                )}
+              </>
             )}
             {displayCount < regularPosts.length && (
               <div ref={observerTarget} className="py-8 flex justify-center">

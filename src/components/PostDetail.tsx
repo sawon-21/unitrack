@@ -245,6 +245,40 @@ export function PostDetail({
             </div>
           )}
 
+          {images.length > 0 && (
+            <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
+              {images.slice(0, 2).map((url, index) => (
+                <div 
+                  key={index}
+                  className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
+                  onClick={() => {
+                    setZoomedImageIndex(index);
+                    setIsZoomed(true);
+                  }}
+                >
+                  <img 
+                    src={url} 
+                    alt={`Attachment ${index + 1}`} 
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                  />
+                  {index === 1 && images.length > 2 && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                      <span className="text-white text-3xl font-bold">+{images.length - 2}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <ImageModal 
+            imageUrls={isZoomed ? images : null}
+            initialIndex={zoomedImageIndex}
+            onClose={() => setIsZoomed(false)} 
+          />
+
           {/* Tracing Line */}
           <div className="mb-6 bg-slate-900/50 rounded-xl p-4 border border-slate-800">
             <div className="flex items-center justify-between mb-4">
@@ -304,45 +338,22 @@ export function PostDetail({
               })}
             </div>
             
-            <div className="mt-4 flex items-center justify-between text-[10px] text-slate-500 font-medium">
-              <span>{['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].indexOf(post.status) + 1} steps overcome</span>
-              <span>{post.status === 'Resolved' ? 'Completed' : 'Processing...'}</span>
+            <div className="mt-4 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                <span>{['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].indexOf(post.status) + 1} steps overcome</span>
+                <span>{post.status === 'Resolved' ? 'Completed' : 'Processing...'}</span>
+              </div>
+              
+              {post.statusMessage && (
+                <div className="mt-2 p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    <span className="font-bold text-sky-400 mr-2">Update:</span>
+                    {post.statusMessage}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-
-          {images.length > 0 && (
-            <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
-              {images.slice(0, 2).map((url, index) => (
-                <div 
-                  key={index}
-                  className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
-                  onClick={() => {
-                    setZoomedImageIndex(index);
-                    setIsZoomed(true);
-                  }}
-                >
-                  <img 
-                    src={url} 
-                    alt={`Attachment ${index + 1}`} 
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                    referrerPolicy="no-referrer"
-                  />
-                  {index === 1 && images.length > 2 && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <span className="text-white text-3xl font-bold">+{images.length - 2}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          
-          <ImageModal 
-            imageUrls={isZoomed ? images : null}
-            initialIndex={zoomedImageIndex}
-            onClose={() => setIsZoomed(false)} 
-          />
 
           {showStatus && (
             <div className="flex items-center gap-2 mb-4">

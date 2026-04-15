@@ -20,6 +20,7 @@ export interface Post {
   userId: string;
   isAnonymous: boolean;
   status: Status;
+  statusMessage?: string;
   commentCount: number;
   isPinned?: boolean;
   likes: number;

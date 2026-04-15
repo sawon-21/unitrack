@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Home, Search, Bell, LayoutDashboard, User as UserIcon, LogIn } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster, toast } from 'sonner';
@@ -21,11 +21,10 @@ import { AuthModal } from './components/AuthModal';
 import { playNotificationSound } from './lib/sound';
 import { Post, Comment, Category, AppNotification, User } from './types';
 import { cn } from './utils';
-import { auth, db, storage, logOut } from './firebase';
+import { auth, db, logOut } from './firebase';
 import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where, limit } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { useScrollDirection } from './hooks/useScrollDirection';
 
@@ -34,6 +33,7 @@ type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile'
 export default function App() {
   const scrollDirection = useScrollDirection();
   const [currentScreen, setCurrentScreen] = useState<Screen>('dashboard');
+  const scrollPositionRef = useRef<number>(0);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [initialSearchQuery, setInitialSearchQuery] = useState('');
@@ -54,6 +54,7 @@ export default function App() {
       return true;
     }
   });
+  const [isInitialSync, setIsInitialSync] = useState(true);
   const [comments, setComments] = useState<Comment[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [users, setUsers] = useState<Record<string, User>>({});
@@ -201,6 +202,7 @@ export default function App() {
         return timeB - timeA;
       });
       setPosts(postsData);
+      setIsInitialSync(false);
       setIsLoading(false);
 
       // Save to localStorage as requested
@@ -377,26 +379,60 @@ export default function App() {
     setHighlightCommentId(null);
   };
 
-  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[], tags?: string[]) => {
-    if (!currentUser) return;
+  const handleCreatePost = async (title: string, description: string, category: Category, isAnonymous: boolean, imageUrls?: string[], tags?: string[], imageFiles?: File[]) => {
+    if (!currentUser) {
+      toast.error("Please sign in to post");
+      return;
+    }
+    
+    const toastId = toast.loading("Creating post...");
     
     const newPostId = db && !isOffline ? doc(collection(db, 'posts')).id : Math.random().toString(36).substring(7);
     
     let uploadedImageUrls: string[] = [];
-    if (imageUrls && imageUrls.length > 0 && !isOffline) {
+    if ((imageFiles || imageUrls) && !isOffline) {
       try {
-        const uploadPromises = imageUrls.map(async (dataUrl, index) => {
-          const imageRef = ref(storage, `posts/${newPostId}/image_${index}.jpg`);
-          await uploadString(imageRef, dataUrl, 'data_url');
-          return getDownloadURL(imageRef);
-        });
-        uploadedImageUrls = await Promise.all(uploadPromises);
+        const filesToUpload = imageFiles || [];
+        
+        // If we only have imageUrls (base64) and no files (e.g. from draft), convert them
+        if (filesToUpload.length === 0 && imageUrls && imageUrls.length > 0) {
+          for (const dataUrl of imageUrls) {
+            const response = await fetch(dataUrl);
+            const blob = await response.blob();
+            filesToUpload.push(new File([blob], "image.jpg", { type: blob.type }));
+          }
+        }
+
+        for (let i = 0; i < filesToUpload.length; i++) {
+          const file = filesToUpload[i];
+          toast.loading(`Uploading image ${i + 1}/${filesToUpload.length}...`, { id: toastId });
+          
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Upload failed');
+          }
+
+          const data = await response.json();
+          uploadedImageUrls.push(data.secure_url);
+        }
       } catch (error) {
-        console.error("Error uploading images to Storage, falling back to direct save:", error);
-        uploadedImageUrls = imageUrls; // Fallback to base64
+        console.error("Cloudinary Upload Error:", error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        toast.error(`Failed to upload images: ${errorMessage}. Please check your Cloudinary configuration.`, { id: toastId });
+        return;
       }
     } else if (imageUrls && imageUrls.length > 0) {
-      uploadedImageUrls = imageUrls; // Keep base64 if offline
+      // If offline, we can't upload to storage, and base64 might be too large for Firestore
+      // But we'll try to save it anyway as a last resort if it's small enough
+      uploadedImageUrls = imageUrls;
     }
 
     const newPost: Post = {
@@ -427,9 +463,10 @@ export default function App() {
     const newPostRef = doc(db, 'posts', newPostId);
     try {
       await setDoc(newPostRef, newPost);
-      toast.success("Post created successfully!");
+      toast.success("Post created successfully!", { id: toastId });
       setCurrentScreen('dashboard');
     } catch (error) {
+      toast.dismiss(toastId);
       handleFirestoreError(error, OperationType.CREATE, `posts/${newPostId}`);
     }
   };
@@ -488,9 +525,61 @@ export default function App() {
     if (!currentUser || !db) return handleSignIn();
     
     if (isOffline) {
-      offlineService.addAction({ type: 'like', payload: { id, isComment } });
-      // Optimistic update could be added here, but for simplicity we rely on sync
+      toast.error("Cannot like while offline. Please check your connection.");
       return;
+    }
+
+    // Optimistic Update
+    if (isComment) {
+      setComments(prev => prev.map(c => {
+        if (c.id === id) {
+          const isLiked = c.likedBy?.includes(currentUser.id);
+          const isDisliked = c.dislikedBy?.includes(currentUser.id);
+          let newLikes = c.likes;
+          let newDislikes = c.dislikes;
+          let newLikedBy = [...(c.likedBy || [])];
+          let newDislikedBy = [...(c.dislikedBy || [])];
+
+          if (isLiked) {
+            newLikes--;
+            newLikedBy = newLikedBy.filter(uid => uid !== currentUser.id);
+          } else {
+            newLikes++;
+            newLikedBy.push(currentUser.id);
+            if (isDisliked) {
+              newDislikes--;
+              newDislikedBy = newDislikedBy.filter(uid => uid !== currentUser.id);
+            }
+          }
+          return { ...c, likes: newLikes, dislikes: newDislikes, likedBy: newLikedBy, dislikedBy: newDislikedBy };
+        }
+        return c;
+      }));
+    } else {
+      setPosts(prev => prev.map(p => {
+        if (p.id === id) {
+          const isLiked = p.likedBy?.includes(currentUser.id);
+          const isDisliked = p.dislikedBy?.includes(currentUser.id);
+          let newLikes = p.likes;
+          let newDislikes = p.dislikes;
+          let newLikedBy = [...(p.likedBy || [])];
+          let newDislikedBy = [...(p.dislikedBy || [])];
+
+          if (isLiked) {
+            newLikes--;
+            newLikedBy = newLikedBy.filter(uid => uid !== currentUser.id);
+          } else {
+            newLikes++;
+            newLikedBy.push(currentUser.id);
+            if (isDisliked) {
+              newDislikes--;
+              newDislikedBy = newDislikedBy.filter(uid => uid !== currentUser.id);
+            }
+          }
+          return { ...p, likes: newLikes, dislikes: newDislikes, likedBy: newLikedBy, dislikedBy: newDislikedBy };
+        }
+        return p;
+      }));
     }
 
     if (isComment) {
@@ -516,6 +605,8 @@ export default function App() {
         await updateDoc(commentRef, updates);
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `comments/${id}`);
+        // Revert optimistic update on error
+        // (In a real app, we'd fetch the latest state or revert specifically)
       }
     } else {
       const targetPost = posts.find(p => p.id === id);
@@ -549,8 +640,61 @@ export default function App() {
     if (!currentUser || !db) return handleSignIn();
 
     if (isOffline) {
-      offlineService.addAction({ type: 'dislike', payload: { id, isComment } });
+      toast.error("Cannot dislike while offline. Please check your connection.");
       return;
+    }
+
+    // Optimistic Update
+    if (isComment) {
+      setComments(prev => prev.map(c => {
+        if (c.id === id) {
+          const isLiked = c.likedBy?.includes(currentUser.id);
+          const isDisliked = c.dislikedBy?.includes(currentUser.id);
+          let newLikes = c.likes;
+          let newDislikes = c.dislikes;
+          let newLikedBy = [...(c.likedBy || [])];
+          let newDislikedBy = [...(c.dislikedBy || [])];
+
+          if (isDisliked) {
+            newDislikes--;
+            newDislikedBy = newDislikedBy.filter(uid => uid !== currentUser.id);
+          } else {
+            newDislikes++;
+            newDislikedBy.push(currentUser.id);
+            if (isLiked) {
+              newLikes--;
+              newLikedBy = newLikedBy.filter(uid => uid !== currentUser.id);
+            }
+          }
+          return { ...c, likes: newLikes, dislikes: newDislikes, likedBy: newLikedBy, dislikedBy: newDislikedBy };
+        }
+        return c;
+      }));
+    } else {
+      setPosts(prev => prev.map(p => {
+        if (p.id === id) {
+          const isLiked = p.likedBy?.includes(currentUser.id);
+          const isDisliked = p.dislikedBy?.includes(currentUser.id);
+          let newLikes = p.likes;
+          let newDislikes = p.dislikes;
+          let newLikedBy = [...(p.likedBy || [])];
+          let newDislikedBy = [...(p.dislikedBy || [])];
+
+          if (isDisliked) {
+            newDislikes--;
+            newDislikedBy = newDislikedBy.filter(uid => uid !== currentUser.id);
+          } else {
+            newDislikes++;
+            newDislikedBy.push(currentUser.id);
+            if (isLiked) {
+              newLikes--;
+              newLikedBy = newLikedBy.filter(uid => uid !== currentUser.id);
+            }
+          }
+          return { ...p, likes: newLikes, dislikes: newDislikes, likedBy: newLikedBy, dislikedBy: newDislikedBy };
+        }
+        return p;
+      }));
     }
 
     if (isComment) {
@@ -609,7 +753,7 @@ export default function App() {
     if (!currentUser || !db) return handleSignIn();
 
     if (isOffline) {
-      offlineService.addAction({ type: 'repost', payload: { id } });
+      toast.error("Cannot repost while offline. Please check your connection.");
       return;
     }
 
@@ -638,6 +782,9 @@ export default function App() {
   };
 
   const handlePostClick = async (id: string) => {
+    if (currentScreen === 'dashboard' || currentScreen === 'search') {
+      scrollPositionRef.current = window.scrollY;
+    }
     setSelectedPostId(id);
     setCurrentScreen('detail');
     window.location.hash = `post-${id}`;
@@ -821,25 +968,29 @@ export default function App() {
       <main className="max-w-3xl mx-auto w-full relative">
         <AnimatePresence mode="wait">
           {currentScreen === 'dashboard' && (
-            <Dashboard 
-              key="dashboard"
-              posts={displayedPosts} 
-              users={users} 
-              currentUser={currentUser || undefined}
-              onPostClick={handlePostClick} 
-              onOpenSubmit={() => {
-                if (!currentUser) handleSignIn();
-                else setCurrentScreen('create');
-              }}
-              onLike={(id) => handleLike(id, false)}
-              onDislike={(id) => handleDislike(id, false)}
-              onRepost={handleRepost}
-              onShare={handleShare}
-              onRepostersClick={handleRepostersClick}
-              onTagClick={handleTagClick}
-              onStatusClick={handleStatusClick}
-              onCategoryClick={handleCategoryClick}
-            />
+              <Dashboard 
+                key="dashboard"
+                posts={displayedPosts} 
+                users={users} 
+                currentUser={currentUser || undefined}
+                onPostClick={handlePostClick} 
+                onOpenSubmit={() => {
+                  if (!currentUser) handleSignIn();
+                  else setCurrentScreen('create');
+                }}
+                onLike={(id) => handleLike(id, false)}
+                onDislike={(id) => handleDislike(id, false)}
+                onRepost={handleRepost}
+                onShare={handleShare}
+                onRepostersClick={handleRepostersClick}
+                onTagClick={handleTagClick}
+                onStatusClick={handleStatusClick}
+                onCategoryClick={handleCategoryClick}
+                isLoading={isInitialSync}
+                restoreScrollPosition={() => {
+                  window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
+                }}
+              />
           )}
           
           {currentScreen === 'search' && (
@@ -858,6 +1009,9 @@ export default function App() {
               onTagClick={handleTagClick}
               onStatusClick={handleStatusClick}
               onCategoryClick={handleCategoryClick}
+              restoreScrollPosition={() => {
+                window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
+              }}
             />
           )}
 
@@ -895,6 +1049,35 @@ export default function App() {
                 currentUser={currentUser}
                 users={users}
                 onLogout={() => setShowLogoutConfirm(true)}
+                onGenerateDemoPost={async () => {
+                  if (!db || !currentUser) return;
+                  try {
+                    const newPostId = doc(collection(db, 'posts')).id;
+                    const demoPost: Post = {
+                      id: newPostId,
+                      title: "Demo Post: Network Outage in Building A",
+                      description: "We are currently experiencing a network outage in Building A. The IT team is investigating the issue. Please use the backup Wi-Fi network in the meantime.",
+                      category: "IT Support",
+                      createdAt: new Date().toISOString(),
+                      userId: currentUser.id,
+                      isAnonymous: false,
+                      status: "Investigating",
+                      statusMessage: "The IT team has identified a faulty switch on the 3rd floor. Replacement parts are being sourced.",
+                      commentCount: 0,
+                      likes: 0,
+                      dislikes: 0,
+                      reposts: 0,
+                      views: 0,
+                      tags: ["network", "outage", "buildingA"],
+                    };
+                    await setDoc(doc(db, 'posts', newPostId), demoPost);
+                    toast.success("Demo post generated successfully!");
+                    setCurrentScreen('dashboard');
+                  } catch (error) {
+                    console.error("Error generating demo post:", error);
+                    toast.error("Failed to generate demo post.");
+                  }
+                }}
               />
             </motion.div>
           )}

@@ -40,6 +40,21 @@ export const PostCard: React.FC<PostCardProps> = ({
 }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
+  const pointerDownPos = React.useRef<{x: number, y: number} | null>(null);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    pointerDownPos.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pointerDownPos.current) return;
+    const dx = Math.abs(e.clientX - pointerDownPos.current.x);
+    const dy = Math.abs(e.clientY - pointerDownPos.current.y);
+    if (dx < 10 && dy < 10) {
+      onClick();
+    }
+    pointerDownPos.current = null;
+  };
   const isAnonymous = post.isAnonymous;
   const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
   
@@ -66,7 +81,8 @@ export const PostCard: React.FC<PostCardProps> = ({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      onClick={onClick}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
       className="border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex flex-col gap-2"
     >
       {post.repostedBy && post.repostedBy.length > 0 && (
@@ -127,7 +143,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           </div>
 
           {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1.5">
+            <div className="flex flex-wrap gap-0.5 mt-1">
               {post.tags.slice(0, 3).map(tag => (
                 <span 
                   key={tag} 

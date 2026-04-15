@@ -26,30 +26,43 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && isOwner(userId);
-      allow update: if isAuthenticated() && isOwner(userId);
+      // Only authenticated users can see profiles
+      allow read: if isAuthenticated();
+      // Only the user themselves can create/update their profile
+      allow create: if isAuthenticated() && isOwner(userId) && 
+                      request.resource.data.get('role', 'Student') == 'Student';
+      allow update: if isAuthenticated() && isOwner(userId) && 
+                      // Prevent self-role escalation
+                      request.resource.data.get('role', resource.data.role) == resource.data.role;
       allow delete: if isAdmin();
     }
-
+    
     match /posts/{postId} {
-      allow read: if true;
-      allow create: if isAuthenticated() && isOwner(request.resource.data.get('userId', null));
-      allow update: if 
-        (resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'viewedBy'])) ||
-        (isAuthenticated() && resource != null && (
-          (isOwner(resource.data.get('userId', null)) && request.resource.data.get('userId', null) == resource.data.get('userId', null)) ||
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy', 'lastRepostedAt'])) ||
-          isAdmin()
-        ));
+      allow read: if true; // Public feed
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.get('userId', null)) &&
+                      request.resource.data.keys().hasAll(['title', 'description', 'category', 'userId', 'createdAt', 'status']);
+      allow update: if isAuthenticated() && (
+        // Owner can update their own post (but not sensitive fields)
+        (isOwner(resource.data.get('userId', null)) && 
+         request.resource.data.get('userId', null) == resource.data.userId &&
+         request.resource.data.get('createdAt', null) == resource.data.createdAt) ||
+        // Anyone can update engagement counts (likes, views, etc.)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy', 'lastRepostedAt'])) ||
+        isAdmin()
+      );
       allow delete: if resource != null && (isOwner(resource.data.get('userId', null)) || isAdmin());
     }
-
+    
     match /comments/{commentId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isOwner(request.resource.data.get('userId', null));
-      allow update: if isAuthenticated() && resource != null && (
-        (isOwner(resource.data.get('userId', null)) && request.resource.data.get('userId', null) == resource.data.get('userId', null)) ||
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.get('userId', null)) &&
+                      request.resource.data.keys().hasAll(['postId', 'userId', 'text', 'createdAt']);
+      allow update: if isAuthenticated() && (
+        (isOwner(resource.data.get('userId', null)) && 
+         request.resource.data.get('userId', null) == resource.data.userId &&
+         request.resource.data.get('postId', null) == resource.data.postId) ||
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'likedBy', 'dislikedBy'])) ||
         isAdmin()
       );
