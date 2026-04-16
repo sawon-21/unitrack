@@ -43,7 +43,7 @@ export function Dashboard({
   isLoading,
   restoreScrollPosition
 }: DashboardProps) {
-  const [displayCount, setDisplayCount] = useState(5);
+  const [displayCount, setDisplayCount] = useState(50);
   const observerTarget = useRef<HTMLDivElement>(null);
 
   const scrollDirection = useScrollDirection();

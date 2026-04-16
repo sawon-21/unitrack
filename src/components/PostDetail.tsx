@@ -28,6 +28,7 @@ interface PostDetailProps {
   onRepostersClick?: () => void;
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
+  onUpdateStatus?: (status: Status, message: string) => void;
   onCategoryClick?: (category: string) => void;
 }
 
@@ -50,6 +51,7 @@ export function PostDetail({
   onRepostersClick, 
   onTagClick,
   onStatusClick,
+  onUpdateStatus,
   onCategoryClick
 }: PostDetailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -59,6 +61,11 @@ export function PostDetail({
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [newStatus, setNewStatus] = useState<Status>(post.status);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [selectedHistory, setSelectedHistory] = useState<any>(null);
 
   const isAnonymous = post.isAnonymous;
   const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
@@ -124,15 +131,15 @@ export function PostDetail({
 
     return (
       <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3 transition-colors duration-1000", isReply ? "mt-3 pl-3 border-l-2 border-slate-800" : "border-b border-slate-800 p-4")}>
-        {!isReply && <Avatar user={commentAuthor} username={cHandle} className="w-10 h-10 text-base shrink-0" />}
+        {!isReply && <Avatar user={commentAuthor} username={cHandle} className="w-8 h-8 text-xs shrink-0" />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-base truncate">
-            <span className="font-bold text-slate-300 truncate hover:underline">@{cHandle}</span>
+            <span className="font-bold text-slate-300 truncate hover:text-slate-200 transition-colors">@{cHandle}</span>
             {commentAuthor?.role === 'Admin' && (
               <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
             )}
             <span className="text-slate-500">·</span>
-            <span className="text-slate-500 shrink-0 hover:underline">
+            <span className="text-slate-500 shrink-0 hover:text-slate-400 transition-colors">
               {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: false }).replace('about ', '')}
             </span>
           </div>
@@ -202,9 +209,9 @@ export function PostDetail({
             </div>
           )}
           <div className="flex items-center gap-3 mb-4">
-            <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-12 h-12 text-base" />
+            <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-10 h-10 text-sm" />
             <div className="flex items-center gap-1.5">
-              <h2 className="font-bold text-slate-400 text-base">@{authorHandle}</h2>
+              <h2 className="font-bold text-slate-400 text-base hover:text-slate-300 transition-colors cursor-pointer">@{authorHandle}</h2>
               {!isAnonymous && author?.role === 'Admin' && (
                 <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
               )}
@@ -321,14 +328,25 @@ export function PostDetail({
                 const isCurrent = idx === currentIdx;
 
                 return (
-                  <div key={step.id} className="relative z-10 flex flex-col items-center">
+                  <div 
+                    key={step.id} 
+                    className="relative z-10 flex flex-col items-center cursor-pointer group"
+                    onClick={() => {
+                      const historyItem = post.statusHistory?.find(h => h.status === step.id);
+                      if (historyItem) {
+                        setSelectedHistory(historyItem);
+                      } else if (step.id === post.status) {
+                        setSelectedHistory(null);
+                      }
+                    }}
+                  >
                     <div className={cn(
-                      "w-3 h-3 rounded-full border-2 transition-all duration-500",
+                      "w-3 h-3 rounded-full border-2 transition-all duration-500 group-hover:scale-125",
                       isCompleted ? "bg-sky-500 border-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.5)]" : "bg-slate-900 border-slate-700",
                       isCurrent && "scale-125 ring-4 ring-sky-500/20"
                     )} />
                     <span className={cn(
-                      "text-[8px] mt-2 font-bold uppercase tracking-tighter transition-colors",
+                      "text-[8px] mt-2 font-bold uppercase tracking-tighter transition-colors group-hover:text-sky-300",
                       isCompleted ? "text-sky-400" : "text-slate-600"
                     )}>
                       {step.label}
@@ -344,15 +362,107 @@ export function PostDetail({
                 <span>{post.status === 'Resolved' ? 'Completed' : 'Processing...'}</span>
               </div>
               
-              {post.statusMessage && (
+              {selectedHistory ? (
+                <div className="mt-2 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border", statusColors[selectedHistory.status as keyof typeof statusColors])}>
+                      {selectedHistory.status}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(selectedHistory.updatedAt).toLocaleDateString()} {new Date(selectedHistory.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    </span>
+                  </div>
+                  {selectedHistory.message && (
+                    <p className="text-xs text-slate-300 leading-relaxed mt-2.5">
+                      {selectedHistory.message}
+                    </p>
+                  )}
+                  {selectedHistory.updaterId && (
+                    <div className="mt-3 pt-3 border-t border-slate-700/50 flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Updated by: <span className="font-bold text-slate-300">@{users[selectedHistory.updaterId]?.username || 'unknown'}</span></span>
+                      {selectedHistory.updaterRole && <span className="px-1.5 py-0.5 bg-slate-800 rounded font-bold text-slate-400">{selectedHistory.updaterRole}</span>}
+                    </div>
+                  )}
+                </div>
+              ) : post.statusMessage && (
                 <div className="mt-2 p-3 bg-slate-950/50 rounded-lg border border-slate-800/50">
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    <span className="font-bold text-sky-400 mr-2">Update:</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-sky-400 text-xs">Current Status Update</span>
+                    <span className="text-[10px] text-slate-500">Latest</span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed mt-1">
                     {post.statusMessage}
                   </p>
+                  {post.statusHistory && post.statusHistory.length > 0 && post.statusHistory[post.statusHistory.length - 1].updaterId && (
+                    <div className="mt-3 pt-3 border-t border-slate-800/50 flex flex-col gap-1 text-[10px] text-slate-500">
+                       <div className="flex items-center justify-between">
+                         <span>Handled by: <span className="font-bold text-slate-400">@{users[post.statusHistory[post.statusHistory.length - 1].updaterId]?.username || 'unknown'}</span></span>
+                         <span className="px-1.5 py-0.5 bg-slate-900 rounded font-bold text-slate-400">{post.statusHistory[post.statusHistory.length - 1].updaterRole}</span>
+                       </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+
+            {currentUser?.role === 'Admin' && onUpdateStatus && (
+              <div className="mt-4 pt-4 border-t border-slate-800">
+                {!isUpdatingStatus ? (
+                  <button 
+                    onClick={() => {
+                      setIsUpdatingStatus(true);
+                      setNewStatus(post.status);
+                      setStatusMessage('');
+                      setSelectedHistory(null);
+                    }}
+                    className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-colors"
+                  >
+                    Update Status (Admin)
+                  </button>
+                ) : (
+                  <div className="space-y-3 bg-slate-950 p-3 rounded-lg border border-slate-800">
+                    <div className="flex justify-between items-center bg-slate-900/50 p-1 rounded-md mb-2 border border-slate-800 flex-wrap gap-1">
+                       {['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].map(s => (
+                         <button
+                           key={s}
+                           onClick={() => setNewStatus(s as Status)}
+                           className={cn(
+                             "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors border max-w-[100%]",
+                             newStatus === s ? statusColors[s as keyof typeof statusColors] : "border-transparent text-slate-500 hover:bg-slate-800"
+                           )}
+                         >
+                           {s}
+                         </button>
+                       ))}
+                    </div>
+                    <textarea 
+                      placeholder="Add an update message... (e.g. Handed over to Dev team)"
+                      value={statusMessage}
+                      onChange={(e) => setStatusMessage(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 text-xs resize-none"
+                      rows={2}
+                    />
+                    <div className="flex justify-end gap-2">
+                       <button 
+                         onClick={() => setIsUpdatingStatus(false)}
+                         className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition-colors hover:bg-slate-800"
+                       >
+                         Cancel
+                       </button>
+                       <button 
+                         onClick={() => {
+                           onUpdateStatus(newStatus, statusMessage);
+                           setIsUpdatingStatus(false);
+                         }}
+                         className="px-3 py-1.5 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-xs font-bold transition-colors shadow-lg shadow-sky-500/20"
+                       >
+                         Save Update
+                       </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {showStatus && (
@@ -373,11 +483,11 @@ export function PostDetail({
           )}
 
           <div className="flex items-center gap-1 text-slate-500 text-sm py-4 border-t border-slate-800">
-            <span className="hover:underline cursor-pointer">
+            <span className="hover:text-slate-400 transition-colors cursor-pointer">
               {new Date(post.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
             </span>
             <span>·</span>
-            <span className="hover:underline cursor-pointer">
+            <span className="hover:text-slate-400 transition-colors cursor-pointer">
               {new Date(post.createdAt).toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'})}
             </span>
             <span>·</span>

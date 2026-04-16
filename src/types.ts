@@ -11,6 +11,14 @@ export interface User {
   usernameChanged?: boolean;
 }
 
+export interface StatusUpdate {
+  status: Status;
+  message?: string;
+  updaterId?: string;
+  updaterRole?: string;
+  updatedAt: string;
+}
+
 export interface Post {
   id: string;
   title: string;
@@ -21,6 +29,7 @@ export interface Post {
   isAnonymous: boolean;
   status: Status;
   statusMessage?: string;
+  statusHistory?: StatusUpdate[];
   commentCount: number;
   isPinned?: boolean;
   likes: number;
@@ -53,8 +62,8 @@ export interface Comment {
 
 export interface AppNotification {
   id: string;
-  userId: string;
-  type: 'pin' | 'announcement' | 'reaction' | 'comment' | 'trending';
+  userId: string; // The user receiving the notification
+  type: 'pin' | 'announcement' | 'reaction' | 'comment' | 'trending' | 'status_update';
   message: string;
   postId?: string;
   commentId?: string;

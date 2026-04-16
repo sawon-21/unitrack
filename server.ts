@@ -9,8 +9,8 @@ dotenv.config();
 
 // Cloudinary config
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'dvhsit2uy';
-const apiKey = process.env.CLOUDINARY_API_KEY;
-const apiSecret = process.env.CLOUDINARY_API_SECRET;
+const apiKey = process.env.CLOUDINARY_API_KEY || '764875535376644';
+const apiSecret = process.env.CLOUDINARY_API_SECRET || '-B8Fj-4ri0esd7zpzQHzwx-ixys';
 
 if (!apiKey || !apiSecret) {
   console.warn("WARNING: Cloudinary API Key or Secret is missing from environment variables.");

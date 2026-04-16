@@ -106,16 +106,16 @@ export const PostCard: React.FC<PostCardProps> = ({
         </div>
       )}
       <div className="flex gap-3">
-        <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-10 h-10 text-sm" />
+        <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-8 h-8 text-xs" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-base truncate">
-              <span className="font-bold text-slate-400 truncate hover:underline">@{authorHandle}</span>
+              <span className="font-bold text-slate-400 truncate hover:text-slate-300 transition-colors">@{authorHandle}</span>
               {!isAnonymous && author?.role === 'Admin' && (
                 <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
               )}
               <span className="text-slate-500">·</span>
-              <span className="text-slate-500 shrink-0 hover:underline">
+              <span className="text-slate-500 shrink-0 hover:text-slate-400 transition-colors">
                 {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false }).replace('about ', '')}
               </span>
             </div>

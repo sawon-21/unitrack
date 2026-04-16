@@ -19,12 +19,13 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { UserListModal } from './components/UserListModal';
 import { AuthModal } from './components/AuthModal';
 import { playNotificationSound } from './lib/sound';
-import { Post, Comment, Category, AppNotification, User } from './types';
+import { Post, Comment, Category, AppNotification, User, Status, StatusUpdate } from './types';
 import { cn } from './utils';
-import { auth, db, logOut } from './firebase';
+import { auth, db, storage, logOut } from './firebase';
 import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where, limit } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { useScrollDirection } from './hooks/useScrollDirection';
 
@@ -407,41 +408,34 @@ export default function App() {
           const file = filesToUpload[i];
           toast.loading(`Uploading image ${i + 1}/${filesToUpload.length}...`, { id: toastId });
           
-          const formData = new FormData();
-          formData.append('file', file);
-
-          const response = await fetch('/api/upload', {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch (e) {
-              console.error("Non-JSON error response:", errorText);
-              throw new Error(`Server error (${response.status}): ${errorText.substring(0, 50)}...`);
-            }
-            throw new Error(errorData.error || 'Upload failed');
-          }
-
-          const responseText = await response.text();
-          let data;
+          let uploadSuccess = false;
           try {
-            data = JSON.parse(responseText);
-          } catch (e) {
-            console.error("Non-JSON success response:", responseText);
-            throw new Error(`Invalid server response: ${responseText.substring(0, 50)}...`);
+            const storageRef = ref(storage, `posts/${newPostId}/${file.name}-${Date.now()}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            uploadedImageUrls.push(downloadURL);
+            uploadSuccess = true;
+          } catch (storageError) {
+            console.error("Firebase Storage upload error:", storageError);
           }
-          
-          uploadedImageUrls.push(data.secure_url);
+
+          // Fallback to base64 if server upload failed
+          if (!uploadSuccess) {
+            console.warn("Storage upload failed, falling back to client-side base64 conversion");
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(new Error("Failed to read file"));
+            });
+            reader.readAsDataURL(file);
+            const base64Data = await base64Promise;
+            uploadedImageUrls.push(base64Data);
+          }
         }
       } catch (error) {
-        console.error("Cloudinary Upload Error:", error);
+        console.error("Upload Error:", error);
         const errorMessage = error instanceof Error ? error.message : "Unknown error";
-        toast.error(`Failed to upload images: ${errorMessage}. Please check your Cloudinary configuration.`, { id: toastId });
+        toast.error(`Failed to process images: ${errorMessage}`, { id: toastId });
         return;
       }
     } else if (imageUrls && imageUrls.length > 0) {
@@ -835,6 +829,57 @@ export default function App() {
     }
   };
 
+  const handleUpdateStatus = async (status: Status, message: string) => {
+    if (!currentUser || currentUser.role !== 'Admin' || !selectedPostId || !db) return;
+    
+    const post = posts.find(p => p.id === selectedPostId);
+    if (!post) return;
+    
+    // Check if the previous status was different, if so and message empty, maybe we don't allow it, or it's fine.
+    
+    const newStatusUpdate: StatusUpdate = {
+      status,
+      message,
+      updaterId: currentUser.id,
+      updaterRole: currentUser.role,
+      updatedAt: new Date().toISOString()
+    };
+    
+    const postRef = doc(db, 'posts', selectedPostId);
+    try {
+      await updateDoc(postRef, {
+        status,
+        statusMessage: message,
+        statusHistory: arrayUnion(newStatusUpdate)
+      });
+      
+      // Notify users who commented or are tracking (viewed/liked/reposted)
+      // For simplicity, we get users from viewedBy, likedBy, repostedBy, and comment userIds
+      const usersToNotify = new Set<string>();
+      if (post.userId !== currentUser.id) usersToNotify.add(post.userId);
+      post.likedBy?.forEach(uid => uid !== currentUser.id && usersToNotify.add(uid));
+      // Add commenters
+      comments.filter(c => c.postId === selectedPostId && c.userId !== currentUser.id).forEach(c => usersToNotify.add(c.userId));
+      
+      for (const uid of Array.from(usersToNotify)) {
+         const notifRef = doc(collection(db, 'notifications'));
+         await setDoc(notifRef, {
+           id: notifRef.id,
+           userId: uid,
+           type: 'status_update',
+           message: `Post "${post.title}" status updated to ${status}`,
+           postId: selectedPostId,
+           read: false,
+           createdAt: new Date().toISOString()
+         });
+      }
+      
+      toast.success('Status updated successfully');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `posts/${selectedPostId}`);
+    }
+  };
+
   const handleShare = (id: string) => {
     const post = posts.find(p => p.id === id);
     if (!post) return;
@@ -1068,22 +1113,47 @@ export default function App() {
                   if (!db || !currentUser) return;
                   try {
                     const newPostId = doc(collection(db, 'posts')).id;
+                    const now = Date.now();
+                    const adminUser = Object.values(users).find(u => u.role === 'Admin') || currentUser;
                     const demoPost: Post = {
                       id: newPostId,
                       title: "Demo Post: Network Outage in Building A",
                       description: "We are currently experiencing a network outage in Building A. The IT team is investigating the issue. Please use the backup Wi-Fi network in the meantime.",
-                      category: "IT Support",
-                      createdAt: new Date().toISOString(),
+                      category: "Campus Issues" as any,
+                      createdAt: new Date(now - 86400000).toISOString(),
                       userId: currentUser.id,
                       isAnonymous: false,
-                      status: "Investigating",
-                      statusMessage: "The IT team has identified a faulty switch on the 3rd floor. Replacement parts are being sourced.",
+                      status: "Dev In-Progress",
+                      statusMessage: "The network switch has been replaced. We are currently applying configurations before bringing it back online.",
+                      statusHistory: [
+                         {
+                           status: 'Acknowledged',
+                           message: 'We have received reports of the outage and are looking into it.',
+                           updaterId: adminUser.id,
+                           updaterRole: adminUser.role,
+                           updatedAt: new Date(now - 70000000).toISOString()
+                         },
+                         {
+                           status: 'Investigating',
+                           message: 'The IT team has identified a faulty switch on the 3rd floor. Replacement parts are being sourced.',
+                           updaterId: adminUser.id,
+                           updaterRole: adminUser.role,
+                           updatedAt: new Date(now - 50000000).toISOString()
+                         },
+                         {
+                           status: 'Dev In-Progress',
+                           message: "The network switch has been replaced. We are currently applying configurations before bringing it back online.",
+                           updaterId: adminUser.id,
+                           updaterRole: adminUser.role,
+                           updatedAt: new Date(now - 10000000).toISOString()
+                         }
+                      ],
                       commentCount: 0,
-                      likes: 0,
+                      likes: 5,
                       dislikes: 0,
-                      reposts: 0,
-                      views: 0,
-                      tags: ["network", "outage", "buildingA"],
+                      reposts: 2,
+                      views: 42,
+                      tags: ["network", "outage", "urgent"],
                     };
                     await setDoc(doc(db, 'posts', newPostId), demoPost);
                     toast.success("Demo post generated successfully!");
@@ -1137,6 +1207,7 @@ export default function App() {
                 onRepostersClick={() => selectedPost.repostedBy && setRepostersList(selectedPost.repostedBy)}
                 onTagClick={handleTagClick}
                 onStatusClick={handleStatusClick}
+                onUpdateStatus={handleUpdateStatus}
                 onCategoryClick={handleCategoryClick}
               />
             </motion.div>

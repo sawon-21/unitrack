@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, Heart, MessageSquare, Pin, TrendingUp, Megaphone, CheckCircle2 } from 'lucide-react';
+import { Bell, Heart, MessageSquare, Pin, TrendingUp, Megaphone, CheckCircle2, Activity } from 'lucide-react';
 import { AppNotification, User } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '../utils';
@@ -22,6 +22,7 @@ export function NotificationsScreen({ notifications, users, onNotificationClick,
       case 'pin': return <Pin className="w-6 h-6 text-emerald-500 fill-emerald-500" />;
       case 'announcement': return <Megaphone className="w-6 h-6 text-yellow-500 fill-yellow-500" />;
       case 'trending': return <TrendingUp className="w-6 h-6 text-blue-400" />;
+      case 'status_update': return <Activity className="w-6 h-6 text-purple-400" />;
       default: return <Bell className="w-6 h-6 text-slate-400" />;
     }
   };
