@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Send, Activity, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Activity, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
@@ -30,6 +30,7 @@ interface PostDetailProps {
   onStatusClick?: (status: string) => void;
   onUpdateStatus?: (status: Status, message: string) => void;
   onCategoryClick?: (category: string) => void;
+  onDelete?: () => void;
 }
 
 export function PostDetail({ 
@@ -52,7 +53,8 @@ export function PostDetail({
   onTagClick,
   onStatusClick,
   onUpdateStatus,
-  onCategoryClick
+  onCategoryClick,
+  onDelete
 }: PostDetailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollDirection = useScrollDirection(scrollRef);
@@ -68,7 +70,8 @@ export function PostDetail({
   const [selectedHistory, setSelectedHistory] = useState<any>(null);
 
   const isAnonymous = post.isAnonymous;
-  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
+  const displayUsername = author?.username || 'user';
+  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : displayUsername.toLowerCase();
 
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
@@ -123,7 +126,7 @@ export function PostDetail({
 
   const renderComment = (comment: Comment, isReply = false, depth = 0) => {
     const commentAuthor = users[comment.userId];
-    const cHandle = commentAuthor?.username || 'unknown';
+    const cHandle = commentAuthor?.username || 'user';
     const replies = getReplies(comment.id);
 
     const isCommentLiked = currentUser ? comment.likedBy?.includes(currentUser.id) : false;
@@ -135,7 +138,7 @@ export function PostDetail({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-base truncate">
             <span className="font-bold text-slate-300 truncate hover:text-slate-200 transition-colors">@{cHandle}</span>
-            {commentAuthor?.role === 'Admin' && (
+            {(commentAuthor?.role === 'Administrator' || commentAuthor?.role === 'Faculty') && (
               <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
             )}
             <span className="text-slate-500">·</span>
@@ -192,6 +195,11 @@ export function PostDetail({
           </button>
           <h1 className="text-xl font-bold text-slate-100">Post</h1>
         </div>
+        {onDelete && currentUser?.role === 'Administrator' && (
+          <button onClick={() => { if(confirm("Delete post?")) onDelete(); }} className="p-2 -mr-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors shrink-0">
+            <Trash2 className="w-5 h-5" />
+          </button>
+        )}
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto pt-14 pb-32 sm:pb-40">
@@ -212,7 +220,7 @@ export function PostDetail({
             <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-10 h-10 text-sm" />
             <div className="flex items-center gap-1.5">
               <h2 className="font-bold text-slate-400 text-base hover:text-slate-300 transition-colors cursor-pointer">@{authorHandle}</h2>
-              {!isAnonymous && author?.role === 'Admin' && (
+              {!isAnonymous && (author?.role === 'Administrator' || author?.role === 'Faculty') && (
                 <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
               )}
             </div>
@@ -405,7 +413,7 @@ export function PostDetail({
               )}
             </div>
 
-            {currentUser?.role === 'Admin' && onUpdateStatus && (
+            {(currentUser?.role === 'Administrator' || currentUser?.role === 'Faculty') && onUpdateStatus && (
               <div className="mt-4 pt-4 border-t border-slate-800">
                 {!isUpdatingStatus ? (
                   <button 
@@ -417,23 +425,29 @@ export function PostDetail({
                     }}
                     className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition-colors"
                   >
-                    Update Status (Admin)
+                    Update Status
                   </button>
                 ) : (
                   <div className="space-y-3 bg-slate-950 p-3 rounded-lg border border-slate-800">
                     <div className="flex justify-between items-center bg-slate-900/50 p-1 rounded-md mb-2 border border-slate-800 flex-wrap gap-1">
-                       {['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].map(s => (
-                         <button
-                           key={s}
-                           onClick={() => setNewStatus(s as Status)}
-                           className={cn(
-                             "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors border max-w-[100%]",
-                             newStatus === s ? statusColors[s as keyof typeof statusColors] : "border-transparent text-slate-500 hover:bg-slate-800"
-                           )}
-                         >
-                           {s}
-                         </button>
-                       ))}
+                       {['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].map(s => {
+                         const disabled = currentUser?.role === 'Faculty' && (s === 'Dev In-Progress' || s === 'Resolved');
+                         if (disabled && newStatus !== s) return null; // Or render as disabled, hiding might be cleaner. Let's render disabled
+                         return (
+                           <button
+                             key={s}
+                             disabled={disabled}
+                             onClick={() => setNewStatus(s as Status)}
+                             className={cn(
+                               "px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition-colors border max-w-[100%]",
+                               newStatus === s ? statusColors[s as keyof typeof statusColors] : "border-transparent text-slate-500 hover:bg-slate-800",
+                               disabled && "opacity-50 cursor-not-allowed"
+                             )}
+                           >
+                             {s}
+                           </button>
+                         );
+                       })}
                     </div>
                     <textarea 
                       placeholder="Add an update message... (e.g. Handed over to Dev team)"

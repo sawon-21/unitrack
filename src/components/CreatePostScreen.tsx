@@ -3,6 +3,7 @@ import { ArrowLeft, EyeOff, Image as ImageIcon, Eye, Edit3, X, Hash } from 'luci
 import { Category, Post, User } from '../types';
 import { motion } from 'framer-motion';
 import { PostCard } from './PostCard';
+import { compressImage } from '../utils/imageUtils';
 
 interface CreatePostScreenProps {
   onBack: () => void;
@@ -97,25 +98,18 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
     setImageFiles(prev => [...prev, ...files]);
 
     let processedCount = 0;
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
+    files.forEach(async file => {
+      try {
+        const dataUrl = await compressImage(file, 1024, 1024, 0.7);
         setImageUrls(prev => [...prev, dataUrl]);
-        
+      } catch (error) {
+        console.error("Failed to process image preview", error);
+      } finally {
         processedCount++;
         if (processedCount === files.length) {
           setIsProcessingImages(false);
         }
-      };
-      reader.onerror = () => {
-        console.error("Failed to read file");
-        processedCount++;
-        if (processedCount === files.length) {
-          setIsProcessingImages(false);
-        }
-      };
-      reader.readAsDataURL(file);
+      }
     });
   };
 

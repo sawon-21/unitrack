@@ -11,7 +11,7 @@ interface AvatarProps {
 export function Avatar({ user, username, className }: AvatarProps) {
   const displayUsername = (user?.username || username || 'anon').toLowerCase();
 
-  if (user?.role === 'Admin' && user.profilePicUrl) {
+  if (user?.profilePicUrl) {
     return (
       <img 
         src={user.profilePicUrl} 

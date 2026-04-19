@@ -28,6 +28,8 @@ import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, order
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { useScrollDirection } from './hooks/useScrollDirection';
+import { compressImage } from './utils/imageUtils';
+import { uploadToCloudinary } from './utils/cloudinaryUtils';
 
 type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail' | 'create';
 
@@ -58,7 +60,14 @@ export default function App() {
   const [isInitialSync, setIsInitialSync] = useState(true);
   const [comments, setComments] = useState<Comment[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [users, setUsers] = useState<Record<string, User>>({});
+  const [users, setUsers] = useState<Record<string, User>>(() => {
+    try {
+      const cached = localStorage.getItem('cached_users');
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const cached = localStorage.getItem('cached_user');
@@ -79,6 +88,8 @@ export default function App() {
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [repostersList, setRepostersList] = useState<string[] | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  const activeUser = currentUser ? (users[currentUser.id] || currentUser) : null;
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -224,6 +235,11 @@ export default function App() {
         usersData[doc.id] = { id: doc.id, ...doc.data() } as User;
       });
       setUsers(usersData);
+      try {
+        localStorage.setItem('cached_users', JSON.stringify(usersData));
+      } catch (e) {
+        console.warn("Failed caching users", e);
+      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'users');
     });
@@ -393,7 +409,7 @@ export default function App() {
     let uploadedImageUrls: string[] = [];
     if ((imageFiles || imageUrls) && !isOffline) {
       try {
-        const filesToUpload = imageFiles || [];
+        const filesToUpload = imageFiles ? [...imageFiles] : [];
         
         // If we only have imageUrls (base64) and no files (e.g. from draft), convert them
         if (filesToUpload.length === 0 && imageUrls && imageUrls.length > 0) {
@@ -408,28 +424,29 @@ export default function App() {
           const file = filesToUpload[i];
           toast.loading(`Uploading image ${i + 1}/${filesToUpload.length}...`, { id: toastId });
           
-          let uploadSuccess = false;
           try {
-            const storageRef = ref(storage, `posts/${newPostId}/${file.name}-${Date.now()}`);
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            uploadedImageUrls.push(downloadURL);
-            uploadSuccess = true;
-          } catch (storageError) {
-            console.error("Firebase Storage upload error:", storageError);
-          }
+            // Compress before upload for optimization
+            const base64Compressed = await compressImage(file, 1024, 1024, 0.8);
+            // Convert base64 back to file for Cloudinary upload
+            const response = await fetch(base64Compressed);
+            const blob = await response.blob();
+            const compressedFile = new File([blob], file.name, { type: file.type });
 
-          // Fallback to base64 if server upload failed
-          if (!uploadSuccess) {
-            console.warn("Storage upload failed, falling back to client-side base64 conversion");
-            const reader = new FileReader();
-            const base64Promise = new Promise<string>((resolve, reject) => {
-              reader.onload = () => resolve(reader.result as string);
-              reader.onerror = () => reject(new Error("Failed to read file"));
-            });
-            reader.readAsDataURL(file);
-            const base64Data = await base64Promise;
-            uploadedImageUrls.push(base64Data);
+            const downloadURL = await uploadToCloudinary(compressedFile);
+            uploadedImageUrls.push(downloadURL);
+          } catch (uploadError: any) {
+            if (uploadError.message.includes('missing')) {
+              toast.error('Image service not configured. Please add keys to .env', { id: toastId });
+              return;
+            }
+            console.warn("Image upload failed, falling back to client-side base64 conversion", uploadError);
+            try {
+              const base64Data = await compressImage(file, 1024, 1024, 0.7);
+              uploadedImageUrls.push(base64Data);
+            } catch (err) {
+              console.error("Image compression failed", err);
+              throw new Error("Could not compress/upload image.");
+            }
           }
         }
       } catch (error) {
@@ -829,8 +846,26 @@ export default function App() {
     }
   };
 
+  const handleDeletePost = async (id: string) => {
+    if (!currentUser || currentUser.role !== 'Administrator' || !db) return;
+    
+    // Optimistic UI update
+    setPosts(prev => prev.filter(p => p.id !== id));
+    if (selectedPostId === id) {
+      setCurrentScreen('dashboard');
+      setSelectedPostId(null);
+    }
+    
+    try {
+      await deleteDoc(doc(db, 'posts', id));
+      toast.success("Post deleted successfully");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `posts/${id}`);
+    }
+  };
+
   const handleUpdateStatus = async (status: Status, message: string) => {
-    if (!currentUser || currentUser.role !== 'Admin' || !selectedPostId || !db) return;
+    if (!currentUser || (currentUser.role !== 'Administrator' && currentUser.role !== 'Faculty') || !selectedPostId || !db) return;
     
     const post = posts.find(p => p.id === selectedPostId);
     if (!post) return;
@@ -1021,21 +1056,21 @@ export default function App() {
         </div>
       )}
 
-      {currentScreen === 'dashboard' && (
-        <Header activeTab={activeTab} onTabChange={setActiveTab} />
-      )}
-      
       <main className="max-w-3xl mx-auto w-full relative">
+        {currentScreen === 'dashboard' && (
+          <Header activeTab={activeTab} onTabChange={setActiveTab} />
+        )}
         <AnimatePresence mode="wait">
           {currentScreen === 'dashboard' && (
+            <div className="pt-16">
               <Dashboard 
                 key="dashboard"
                 posts={displayedPosts} 
                 users={users} 
-                currentUser={currentUser || undefined}
+                currentUser={activeUser || undefined}
                 onPostClick={handlePostClick} 
                 onOpenSubmit={() => {
-                  if (!currentUser) handleSignIn();
+                  if (!activeUser) handleSignIn();
                   else setCurrentScreen('create');
                 }}
                 onLike={(id) => handleLike(id, false)}
@@ -1046,11 +1081,13 @@ export default function App() {
                 onTagClick={handleTagClick}
                 onStatusClick={handleStatusClick}
                 onCategoryClick={handleCategoryClick}
+                onDeletePost={handleDeletePost}
                 isLoading={isInitialSync}
                 restoreScrollPosition={() => {
                   window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
                 }}
               />
+            </div>
           )}
           
           {currentScreen === 'search' && (
@@ -1058,7 +1095,7 @@ export default function App() {
               key="search"
               posts={posts} 
               users={users} 
-              currentUser={currentUser || undefined}
+              currentUser={activeUser || undefined}
               initialQuery={initialSearchQuery}
               onPostClick={handlePostClick} 
               onLike={(id) => handleLike(id, false)}
@@ -1069,6 +1106,7 @@ export default function App() {
               onTagClick={handleTagClick}
               onStatusClick={handleStatusClick}
               onCategoryClick={handleCategoryClick}
+              onDeletePost={handleDeletePost}
               restoreScrollPosition={() => {
                 window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
               }}
@@ -1080,7 +1118,7 @@ export default function App() {
               <AnalyticsDashboard 
                 posts={posts} 
                 users={users} 
-                currentUser={currentUser || undefined}
+                currentUser={activeUser || undefined}
                 onPostClick={handlePostClick} 
                 onLike={(id) => handleLike(id, false)}
                 onDislike={(id) => handleDislike(id, false)}
@@ -1088,11 +1126,12 @@ export default function App() {
                 onShare={handleShare}
                 onRepostersClick={handleRepostersClick}
                 onTagClick={handleTagClick}
+                onDeletePost={handleDeletePost}
               />
             </motion.div>
           )}
 
-          {currentScreen === 'notifications' && currentUser && (
+          {currentScreen === 'notifications' && activeUser && (
             <motion.div key="notifications" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
               <NotificationsScreen 
                 notifications={notifications} 
@@ -1103,25 +1142,25 @@ export default function App() {
             </motion.div>
           )}
 
-          {currentScreen === 'profile' && currentUser && (
+          {currentScreen === 'profile' && activeUser && (
             <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
               <ProfileScreen 
-                currentUser={currentUser}
+                currentUser={activeUser}
                 users={users}
                 onLogout={() => setShowLogoutConfirm(true)}
                 onGenerateDemoPost={async () => {
-                  if (!db || !currentUser) return;
+                  if (!db || !activeUser) return;
                   try {
                     const newPostId = doc(collection(db, 'posts')).id;
                     const now = Date.now();
-                    const adminUser = Object.values(users).find(u => u.role === 'Admin') || currentUser;
+                    const adminUser = Object.values(users).find(u => u.role === 'Administrator') || activeUser;
                     const demoPost: Post = {
                       id: newPostId,
                       title: "Demo Post: Network Outage in Building A",
                       description: "We are currently experiencing a network outage in Building A. The IT team is investigating the issue. Please use the backup Wi-Fi network in the meantime.",
                       category: "Campus Issues" as any,
                       createdAt: new Date(now - 86400000).toISOString(),
-                      userId: currentUser.id,
+                      userId: activeUser.id,
                       isAnonymous: false,
                       status: "Dev In-Progress",
                       statusMessage: "The network switch has been replaced. We are currently applying configurations before bringing it back online.",
@@ -1167,7 +1206,7 @@ export default function App() {
             </motion.div>
           )}
 
-          {currentScreen === 'profile' && !currentUser && (
+          {currentScreen === 'profile' && !activeUser && (
             <motion.div key="profile-login" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center py-20 px-4 text-center">
               <UserIcon className="w-16 h-16 text-slate-700 mb-4" />
               <h2 className="text-xl font-bold text-slate-100 mb-2">Sign in to your account</h2>
@@ -1176,7 +1215,7 @@ export default function App() {
                 onClick={handleSignIn}
                 className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-full font-bold transition-colors flex items-center gap-2"
               >
-                <LogIn className="w-5 h-5" /> Sign in with Google
+                <LogIn className="w-5 h-5" /> Sign in
               </button>
             </motion.div>
           )}
@@ -1188,7 +1227,7 @@ export default function App() {
                 author={users[selectedPost.userId]} 
                 comments={postComments} 
                 users={users} 
-                currentUser={currentUser || undefined}
+                currentUser={activeUser || undefined}
                 highlightCommentId={highlightCommentId}
                 onBack={() => { 
                   setCurrentScreen('dashboard'); 
@@ -1218,7 +1257,7 @@ export default function App() {
               <CreatePostScreen
                 onBack={() => setCurrentScreen('dashboard')}
                 onSubmit={handleCreatePost}
-                currentUser={currentUser}
+                currentUser={activeUser}
               />
             </motion.div>
           )}
@@ -1245,13 +1284,13 @@ export default function App() {
         />
       )}
 
-      {/* Hide bottom nav on detail screen on mobile to prevent overlap with comment box, and on scroll down */}
+      {/* Bottom Navigation */}
       <nav className={cn(
-        "fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md border-t border-slate-800 flex justify-around items-center h-14 z-50 max-w-3xl mx-auto transition-transform duration-300",
+        "fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/60 backdrop-blur-xl border border-white/5 p-1 rounded-full flex gap-1 z-50 shadow-2xl transition-transform duration-300",
         currentScreen === 'detail' 
-          ? "translate-y-full sm:translate-y-0" 
+          ? "translate-y-24 sm:translate-y-0" 
           : scrollDirection === 'down' 
-            ? "translate-y-full" 
+            ? "translate-y-24" 
             : "translate-y-0"
       )}>
         <button 
@@ -1261,43 +1300,75 @@ export default function App() {
             setHighlightCommentId(null); 
             window.scrollTo({ top: 0, behavior: 'smooth' }); 
           }}
-          className={cn("p-3 rounded-full transition-colors", currentScreen === 'dashboard' ? "text-slate-100" : "text-slate-500 hover:text-slate-100 hover:bg-slate-900")}
+          className={cn(
+            "rounded-full transition-all flex items-center justify-center font-medium",
+            currentScreen === 'dashboard' 
+              ? "bg-white/10 text-sky-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
+              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+          )}
         >
-          <Home className="w-6 h-6" />
+          <Home className="w-[16px] h-[16px]" />
+          {currentScreen === 'dashboard' && <span className="text-[10px] font-bold tracking-wider uppercase">Home</span>}
         </button>
+
         <button 
           onClick={() => { setCurrentScreen('search'); setSelectedPostId(null); setHighlightCommentId(null); }}
-          className={cn("p-3 rounded-full transition-colors", currentScreen === 'search' ? "text-slate-100" : "text-slate-500 hover:text-slate-100 hover:bg-slate-900")}
+          className={cn(
+            "rounded-full transition-all flex items-center justify-center font-medium",
+            currentScreen === 'search' 
+              ? "bg-white/10 text-sky-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
+              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+          )}
         >
-          <Search className="w-6 h-6" />
+          <Search className="w-[16px] h-[16px]" />
+          {currentScreen === 'search' && <span className="text-[10px] font-bold tracking-wider uppercase">Search</span>}
         </button>
+
         <button 
           onClick={() => { setCurrentScreen('analytics'); setSelectedPostId(null); setHighlightCommentId(null); }}
-          className={cn("p-3 rounded-full transition-colors", currentScreen === 'analytics' ? "text-slate-100" : "text-slate-500 hover:text-slate-100 hover:bg-slate-900")}
+          className={cn(
+            "rounded-full transition-all flex items-center justify-center font-medium",
+            currentScreen === 'analytics' 
+              ? "bg-white/10 text-purple-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
+              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+          )}
         >
-          <LayoutDashboard className="w-6 h-6" />
+          <LayoutDashboard className="w-[16px] h-[16px]" />
+          {currentScreen === 'analytics' && <span className="text-[10px] font-bold tracking-wider uppercase">Stats</span>}
         </button>
+
         <button 
           onClick={() => { 
-            if (!currentUser) { handleSignIn(); return; }
+            if (!activeUser) { handleSignIn(); return; }
             setCurrentScreen('notifications'); 
             setSelectedPostId(null);
             setHighlightCommentId(null);
           }}
-          className={cn("p-3 rounded-full transition-colors relative", currentScreen === 'notifications' ? "text-slate-100" : "text-slate-500 hover:text-slate-100 hover:bg-slate-900")}
+          className={cn(
+            "rounded-full transition-all flex items-center justify-center font-medium relative",
+            currentScreen === 'notifications' 
+              ? "bg-white/10 text-emerald-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
+              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+          )}
         >
-          <Bell className="w-6 h-6" />
-          {unreadNotifications > 0 && (
-            <span className="absolute top-2 right-2 w-4 h-4 bg-sky-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full">
-              {unreadNotifications > 9 ? '9+' : unreadNotifications}
-            </span>
+          <Bell className="w-[16px] h-[16px]" />
+          {currentScreen === 'notifications' && <span className="text-[10px] font-bold tracking-wider uppercase">Alerts</span>}
+          {unreadNotifications > 0 && currentScreen !== 'notifications' && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 border border-slate-900 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
           )}
         </button>
+
         <button 
           onClick={() => { setCurrentScreen('profile'); setSelectedPostId(null); setHighlightCommentId(null); }}
-          className={cn("p-3 rounded-full transition-colors", currentScreen === 'profile' ? "text-slate-100" : "text-slate-500 hover:text-slate-100 hover:bg-slate-900")}
+          className={cn(
+            "rounded-full transition-all flex items-center justify-center font-medium",
+            currentScreen === 'profile' 
+              ? "bg-white/10 text-pink-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
+              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+          )}
         >
-          <UserIcon className="w-6 h-6" />
+          <UserIcon className="w-[16px] h-[16px]" />
+          {currentScreen === 'profile' && <span className="text-[10px] font-bold tracking-wider uppercase">Profile</span>}
         </button>
       </nav>
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />

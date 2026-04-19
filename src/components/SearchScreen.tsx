@@ -23,6 +23,7 @@ interface SearchScreenProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
+  onDeletePost?: (id: string) => void;
   restoreScrollPosition?: () => void;
 }
 
@@ -40,6 +41,7 @@ export function SearchScreen({
   onTagClick,
   onStatusClick,
   onCategoryClick,
+  onDeletePost,
   restoreScrollPosition
 }: SearchScreenProps) {
   const scrollDirection = useScrollDirection();
@@ -202,18 +204,18 @@ export function SearchScreen({
       className="pb-20"
     >
       <div className={cn(
-        "sticky top-0 z-20 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
-        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+        "fixed top-0 left-0 right-0 z-50 px-4 pt-4 pb-2 transition-transform duration-300 pointer-events-none mt-0",
+        scrollDirection === 'down' ? "-translate-y-[150%] opacity-0" : "translate-y-0 opacity-100"
       )}>
-        <div className="relative" ref={containerRef}>
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+        <div className="relative pointer-events-auto drop-shadow-xl" ref={containerRef}>
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input 
             ref={inputRef}
             type="text" 
             placeholder="Search issues or @username..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border-none rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
+            className="w-full bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-400/70 focus:outline-none focus:ring-1 focus:ring-sky-500/50 transition-all shadow-2xl"
           />
           
           {showUserDropdown && suggestedUsers.length > 0 && (
@@ -230,7 +232,7 @@ export function SearchScreen({
                   <Avatar user={user} username={user.username} className="w-8 h-8 text-xs" />
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-200">@{user.username}</span>
-                    {user.role === 'Admin' && (
+                    {(user.role === 'Administrator' || user.role === 'Faculty') && (
                       <BadgeCheck className="w-4 h-4 text-white fill-[#1877F2]" />
                     )}
                   </div>
@@ -241,7 +243,7 @@ export function SearchScreen({
         </div>
       </div>
 
-      <div className="flex flex-col">
+      <div className="flex flex-col pt-16">
         {!searchQuery.trim() ? (
           <div className="py-6 px-4">
             <h2 className="text-xl font-bold text-slate-100 mb-4 flex items-center gap-2">
@@ -296,6 +298,7 @@ export function SearchScreen({
               onTagClick={onTagClick}
               onStatusClick={onStatusClick}
               onCategoryClick={onCategoryClick}
+              onDelete={currentUser?.role === 'Administrator' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
             />
           ))
         ) : (

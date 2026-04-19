@@ -15,12 +15,13 @@ interface AnalyticsDashboardProps {
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
   onTagClick?: (tag: string) => void;
+  onDeletePost?: (id: string) => void;
 }
 
-export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick, onDeletePost }: AnalyticsDashboardProps) {
   const scrollDirection = useScrollDirection();
   // Filter out admin posts
-  const userPosts = posts.filter(p => users[p.userId]?.role !== 'Admin');
+  const userPosts = posts.filter(p => users[p.userId]?.role !== 'Administrator');
 
   // Calculate top 20 posts based on score
   // Top post 1st check how many repost, then reach/view, then react and comment
@@ -43,13 +44,13 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
   return (
     <div className="pb-20 animate-in fade-in duration-200">
       <header className={cn(
-        "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 transition-transform duration-300",
-        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+        "fixed top-0 left-0 right-0 z-50 flex justify-center items-center px-4 pt-4 pb-2 drop-shadow-xl transition-transform duration-300 pointer-events-none",
+        scrollDirection === 'down' ? "-translate-y-[150%] opacity-0" : "translate-y-0 opacity-100"
       )}>
-        <h1 className="text-xl font-bold text-slate-100">Analytics Dashboard</h1>
+        <h1 className="font-bold text-slate-100 bg-slate-900/60 backdrop-blur-xl border border-white/5 px-6 py-2 rounded-full shadow-2xl pointer-events-auto uppercase tracking-widest text-[10px]">Analytics</h1>
       </header>
       
-      <div className="p-4 grid grid-cols-2 gap-4 border-b border-slate-800">
+      <div className="p-4 grid grid-cols-2 gap-4 border-b border-slate-800 pt-20">
         <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800">
           <div className="text-2xl font-bold text-sky-400">{userPosts.length}</div>
           <div className="text-xs text-slate-500 uppercase tracking-wider mt-1">Total Posts</div>
@@ -90,6 +91,7 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
                 onShare={() => onShare(post.id)}
                 onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
                 onTagClick={onTagClick}
+                onDelete={currentUser?.role === 'Administrator' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
               />
             </div>
           </div>

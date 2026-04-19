@@ -32,8 +32,8 @@ export const UserListModal: React.FC<UserListModalProps> = ({ title, users, onCl
                   <Avatar user={user} username={user.username} className="w-10 h-10" />
                   <div>
                     <p className="font-bold text-slate-200">@{user.username}</p>
-                    {user.role === 'Admin' && (
-                      <span className="text-xs font-medium text-sky-400">Admin</span>
+                    {(user.role === 'Administrator' || user.role === 'Faculty') && (
+                      <span className="text-xs font-medium text-sky-400">{user.role}</span>
                     )}
                   </div>
                 </div>

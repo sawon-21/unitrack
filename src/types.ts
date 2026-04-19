@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Student';
+export type Role = 'Administrator' | 'Faculty' | 'Student';
 export type Status = 'New' | 'Acknowledged' | 'Investigating' | 'Dev In-Progress' | 'Resolved' | 'Reopened';
 export type Category = 'Academics' | 'Campus Issues' | 'Suggestions' | 'Lost' | 'Found' | 'Opportunities';
 

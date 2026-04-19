@@ -30,22 +30,23 @@ export function NotificationsScreen({ notifications, users, onNotificationClick,
   return (
     <div className="pb-20 animate-in fade-in duration-200">
       <header className={cn(
-        "sticky top-0 z-10 bg-black/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center transition-transform duration-300",
-        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+        "fixed top-0 left-0 right-0 z-50 flex justify-center items-center px-4 pt-4 pb-2 drop-shadow-xl transition-transform duration-300 pointer-events-none",
+        scrollDirection === 'down' ? "-translate-y-[150%] opacity-0" : "translate-y-0 opacity-100"
       )}>
-        <h1 className="text-xl font-bold text-slate-100">Notifications</h1>
-        {notifications.some(n => !n.read) && (
-          <button 
-            onClick={onMarkAllRead}
-            className="text-sky-400 hover:text-sky-300 text-sm font-semibold flex items-center gap-1 transition-colors"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            Mark all read
-          </button>
-        )}
+        <div className="bg-slate-900/60 backdrop-blur-xl border border-white/5 px-6 py-2 rounded-full shadow-2xl pointer-events-auto flex items-center justify-between gap-4 w-full max-w-sm">
+          <h1 className="text-xl font-bold text-slate-100 uppercase tracking-widest text-[10px]">Notifications</h1>
+          {notifications.some(n => !n.read) && (
+            <button 
+              onClick={onMarkAllRead}
+              className="text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              <CheckCircle2 className="w-5 h-5" />
+            </button>
+          )}
+        </div>
       </header>
 
-      <div className="flex flex-col">
+      <div className="flex flex-col pt-20">
         {notifications.length === 0 ? (
           <div className="text-center text-slate-500 py-20 px-4">
             <Bell className="w-12 h-12 mx-auto mb-4 text-slate-700" />

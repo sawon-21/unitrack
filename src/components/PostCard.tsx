@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck } from 'lucide-react';
+import { MessageSquare, Pin, Repeat2, ThumbsUp, ThumbsDown, BarChart2, Share, BadgeCheck, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User } from '../types';
 import { cn } from '../utils';
@@ -22,6 +22,7 @@ interface PostCardProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
+  onDelete?: () => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ 
@@ -36,7 +37,8 @@ export const PostCard: React.FC<PostCardProps> = ({
   onRepostersClick, 
   onTagClick,
   onStatusClick,
-  onCategoryClick
+  onCategoryClick,
+  onDelete
 }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
@@ -56,7 +58,8 @@ export const PostCard: React.FC<PostCardProps> = ({
     pointerDownPos.current = null;
   };
   const isAnonymous = post.isAnonymous;
-  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : (author?.username.toLowerCase() || 'unknown');
+  const displayUsername = author?.username || 'user';
+  const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : displayUsername.toLowerCase();
   
   const isLiked = currentUser ? post.likedBy?.includes(currentUser.id) : false;
   const isDisliked = currentUser ? post.dislikedBy?.includes(currentUser.id) : false;
@@ -111,7 +114,7 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-base truncate">
               <span className="font-bold text-slate-400 truncate hover:text-slate-300 transition-colors">@{authorHandle}</span>
-              {!isAnonymous && author?.role === 'Admin' && (
+              {!isAnonymous && (author?.role === 'Administrator' || author?.role === 'Faculty') && (
                 <BadgeCheck className="w-5 h-5 text-white fill-[#1877F2]" />
               )}
               <span className="text-slate-500">·</span>
@@ -119,6 +122,14 @@ export const PostCard: React.FC<PostCardProps> = ({
                 {formatDistanceToNow(new Date(post.createdAt), { addSuffix: false }).replace('about ', '')}
               </span>
             </div>
+            {onDelete && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                className="text-slate-500 hover:text-red-500 p-1 rounded-full hover:bg-red-500/10 transition-colors shrink-0"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
           
           <h2 className="font-bold text-slate-100 mt-0.5 text-lg leading-snug">

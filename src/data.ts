@@ -3,7 +3,7 @@ import { User, Post, Comment, AppNotification } from './types';
 export const currentUser: User = {
   id: 'admin1',
   username: 'admin_official',
-  role: 'Admin'
+  role: 'Administrator'
 };
 
 export const users: Record<string, User> = {};

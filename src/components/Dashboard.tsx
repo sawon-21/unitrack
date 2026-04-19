@@ -22,6 +22,7 @@ interface DashboardProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
+  onDeletePost?: (id: string) => void;
   isLoading?: boolean;
   restoreScrollPosition?: () => void;
 }
@@ -40,6 +41,7 @@ export function Dashboard({
   onTagClick,
   onStatusClick,
   onCategoryClick,
+  onDeletePost,
   isLoading,
   restoreScrollPosition
 }: DashboardProps) {
@@ -118,7 +120,7 @@ export function Dashboard({
       }}
       className="pb-20"
     >
-      <div className="px-4 py-3">
+      <div className="px-4 py-3 pb-0">
         <div className="bg-[#0A0F1E] border border-slate-800/40 rounded-2xl py-3 px-4 flex justify-between items-center shadow-2xl">
           <div 
             className="flex-1 text-center cursor-pointer hover:opacity-80 transition-opacity"
@@ -207,6 +209,7 @@ export function Dashboard({
                     onTagClick={onTagClick}
                     onStatusClick={onStatusClick}
                     onCategoryClick={onCategoryClick}
+                    onDelete={currentUser?.role === 'Administrator' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
                   />
                 ))}
                 {posts.length === 0 && !isLoading && (
