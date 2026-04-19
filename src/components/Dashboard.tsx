@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Pin } from 'lucide-react';
+import { Plus, Pin, BadgeCheck } from 'lucide-react';
 import { PostCard } from './PostCard';
 import { SkeletonPost } from './SkeletonPost';
 import { Post, User } from '../types';
@@ -170,7 +170,12 @@ export function Dashboard({
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Avatar user={users[post.userId]} username={users[post.userId]?.username} className="w-6 h-6 text-[10px]" />
-                      <span className="text-sm font-semibold text-slate-200 truncate">@{users[post.userId]?.username}</span>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="text-sm font-semibold text-slate-200 truncate">@{users[post.userId]?.username}</span>
+                        {(users[post.userId]?.role === 'Administrator' || users[post.userId]?.role === 'Faculty') && (
+                          <BadgeCheck className="w-3.5 h-3.5 fill-[#1877F2] text-white stroke-[1.5px] mb-0.5 shrink-0" />
+                        )}
+                      </div>
                     </div>
                     <h3 className="font-bold text-slate-100 line-clamp-1">{post.title}</h3>
                     <p className="text-sm text-slate-400 line-clamp-2 mt-1">{post.description}</p>

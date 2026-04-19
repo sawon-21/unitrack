@@ -34,7 +34,7 @@ export const UserListModal: React.FC<UserListModalProps> = ({ title, users, onCl
                     <div className="flex items-center gap-1.5">
                       <p className="font-bold text-slate-200 truncate">@{user.username}</p>
                       {(user.role === 'Administrator' || user.role === 'Faculty') && (
-                        <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-slate-900 stroke-[1.5px] shrink-0" />
+                        <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-white stroke-[1.5px] shrink-0" />
                       )}
                     </div>
                     <span className="text-xs font-medium text-slate-500">{user.role}</span>

@@ -245,7 +245,7 @@ export function SearchScreen({
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-200">@{user.username}</span>
                     {(user.role === 'Administrator' || user.role === 'Faculty') && (
-                      <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-slate-900 stroke-[1.5px]" />
+                      <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-white stroke-[1.5px]" />
                     )}
                   </div>
                 </div>

@@ -105,7 +105,7 @@ export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-2xl font-bold text-slate-100">@{currentUser.username}</h2>
           {(currentUser.role === 'Administrator' || currentUser.role === 'Faculty') && (
-            <BadgeCheck className="w-6 h-6 fill-[#1877F2] text-slate-900 stroke-[1.5px]" />
+            <BadgeCheck className="w-6 h-6 fill-[#1877F2] text-white stroke-[1.5px]" />
           )}
         </div>
         <div className="flex gap-2">

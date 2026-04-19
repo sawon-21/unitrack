@@ -1284,7 +1284,7 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <nav className={cn(
-        "fixed bottom-4 left-4 right-4 max-w-sm mx-auto z-50 flex justify-between items-center bg-slate-900/70 backdrop-blur-2xl border border-white/10 px-5 py-3 rounded-[32px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 pointer-events-auto",
+        "fixed bottom-4 left-4 right-4 max-w-sm mx-auto z-50 flex justify-between items-center bg-slate-900/70 backdrop-blur-3xl border border-white/5 px-4 py-1.5 rounded-[24px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 pointer-events-auto",
         currentScreen === 'detail' 
           ? "translate-y-28 sm:translate-y-0" 
           : scrollDirection === 'down' 
@@ -1299,40 +1299,40 @@ export default function App() {
             window.scrollTo({ top: 0, behavior: 'smooth' }); 
           }}
           className={cn(
-            "rounded-2xl transition-all flex items-center justify-center font-semibold",
+            "rounded-xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'dashboard' 
-              ? "bg-white/10 text-sky-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
+              ? "bg-white/10 text-sky-400 px-3 py-1.5 gap-2 shadow-lg scale-100" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2 w-[40px] h-[40px]"
           )}
         >
           <Home className="w-5 h-5" />
-          {currentScreen === 'dashboard' && <span className="text-[12px] font-bold tracking-tight">Home</span>}
+          {currentScreen === 'dashboard' && <span className="text-[11px] font-bold tracking-tight">Home</span>}
         </button>
 
         <button 
           onClick={() => { setCurrentScreen('search'); setSelectedPostId(null); setHighlightCommentId(null); }}
           className={cn(
-            "rounded-2xl transition-all flex items-center justify-center font-semibold",
+            "rounded-xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'search' 
-              ? "bg-white/10 text-sky-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
+              ? "bg-white/10 text-sky-400 px-3 py-1.5 gap-2 shadow-lg scale-100" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2 w-[40px] h-[40px]"
           )}
         >
           <Search className="w-5 h-5" />
-          {currentScreen === 'search' && <span className="text-[12px] font-bold tracking-tight">Search</span>}
+          {currentScreen === 'search' && <span className="text-[11px] font-bold tracking-tight">Search</span>}
         </button>
 
         <button 
           onClick={() => { setCurrentScreen('analytics'); setSelectedPostId(null); setHighlightCommentId(null); }}
           className={cn(
-            "rounded-2xl transition-all flex items-center justify-center font-semibold",
+            "rounded-xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'analytics' 
-              ? "bg-white/10 text-purple-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
+              ? "bg-white/10 text-purple-400 px-3 py-1.5 gap-2 shadow-lg scale-100" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2 w-[40px] h-[40px]"
           )}
         >
           <LayoutDashboard className="w-5 h-5" />
-          {currentScreen === 'analytics' && <span className="text-[12px] font-bold tracking-tight">Stats</span>}
+          {currentScreen === 'analytics' && <span className="text-[11px] font-bold tracking-tight">Stats</span>}
         </button>
 
         <button 
@@ -1343,30 +1343,30 @@ export default function App() {
             setHighlightCommentId(null);
           }}
           className={cn(
-            "rounded-2xl transition-all flex items-center justify-center font-semibold relative",
+            "rounded-xl transition-all flex items-center justify-center font-semibold relative",
             currentScreen === 'notifications' 
-              ? "bg-white/10 text-emerald-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
+              ? "bg-white/10 text-emerald-400 px-3 py-1.5 gap-2 shadow-lg scale-100" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2 w-[40px] h-[40px]"
           )}
         >
           <Bell className="w-5 h-5" />
-          {currentScreen === 'notifications' && <span className="text-[12px] font-bold tracking-tight">Alerts</span>}
+          {currentScreen === 'notifications' && <span className="text-[11px] font-bold tracking-tight">Alerts</span>}
           {unreadNotifications > 0 && currentScreen !== 'notifications' && (
-            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.7)]" />
+            <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.7)]" />
           )}
         </button>
 
         <button 
           onClick={() => { setCurrentScreen('profile'); setSelectedPostId(null); setHighlightCommentId(null); }}
           className={cn(
-            "rounded-2xl transition-all flex items-center justify-center font-semibold",
+            "rounded-xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'profile' 
-              ? "bg-white/10 text-pink-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
-              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
+              ? "bg-white/10 text-pink-400 px-3 py-1.5 gap-2 shadow-lg scale-100" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2 w-[40px] h-[40px]"
           )}
         >
           <UserIcon className="w-5 h-5" />
-          {currentScreen === 'profile' && <span className="text-[12px] font-bold tracking-tight">Profile</span>}
+          {currentScreen === 'profile' && <span className="text-[11px] font-bold tracking-tight">Profile</span>}
         </button>
       </nav>
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
