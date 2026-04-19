@@ -159,6 +159,12 @@ export default function App() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // Try getting cached user first for immediate display
+        const cachedUser = localStorage.getItem('cached_user');
+        if (cachedUser) {
+          setCurrentUser(JSON.parse(cachedUser));
+        }
+
         const userRef = doc(db!, 'users', user.uid);
         try {
           const userSnap = await getDoc(userRef);
@@ -180,21 +186,13 @@ export default function App() {
             userData = userSnap.data() as User;
           }
           setCurrentUser(userData);
-          try {
-            localStorage.setItem('cached_user', JSON.stringify(userData));
-          } catch (e) {
-            console.error("Error saving user to localStorage", e);
-          }
+          localStorage.setItem('cached_user', JSON.stringify(userData));
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
         }
       } else {
         setCurrentUser(null);
-        try {
-          localStorage.removeItem('cached_user');
-        } catch (e) {
-          console.error("Error removing user from localStorage", e);
-        }
+        localStorage.removeItem('cached_user');
       }
       setIsAuthReady(true);
     });
@@ -1286,12 +1284,12 @@ export default function App() {
 
       {/* Bottom Navigation */}
       <nav className={cn(
-        "fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/60 backdrop-blur-xl border border-white/5 p-1 rounded-full flex gap-1 z-50 shadow-2xl transition-transform duration-300",
+        "fixed bottom-4 left-4 right-4 max-w-sm mx-auto z-50 flex justify-between items-center bg-slate-900/70 backdrop-blur-2xl border border-white/10 px-5 py-3 rounded-[32px] shadow-[0_8px_32px_rgba(0,0,0,0.5)] transition-all duration-300 pointer-events-auto",
         currentScreen === 'detail' 
-          ? "translate-y-24 sm:translate-y-0" 
+          ? "translate-y-28 sm:translate-y-0" 
           : scrollDirection === 'down' 
-            ? "translate-y-24" 
-            : "translate-y-0"
+            ? "translate-y-28 opacity-0" 
+            : "translate-y-0 opacity-100"
       )}>
         <button 
           onClick={() => { 
@@ -1301,40 +1299,40 @@ export default function App() {
             window.scrollTo({ top: 0, behavior: 'smooth' }); 
           }}
           className={cn(
-            "rounded-full transition-all flex items-center justify-center font-medium",
+            "rounded-2xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'dashboard' 
-              ? "bg-white/10 text-sky-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
-              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+              ? "bg-white/10 text-sky-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
           )}
         >
-          <Home className="w-[16px] h-[16px]" />
-          {currentScreen === 'dashboard' && <span className="text-[10px] font-bold tracking-wider uppercase">Home</span>}
+          <Home className="w-5 h-5" />
+          {currentScreen === 'dashboard' && <span className="text-[12px] font-bold tracking-tight">Home</span>}
         </button>
 
         <button 
           onClick={() => { setCurrentScreen('search'); setSelectedPostId(null); setHighlightCommentId(null); }}
           className={cn(
-            "rounded-full transition-all flex items-center justify-center font-medium",
+            "rounded-2xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'search' 
-              ? "bg-white/10 text-sky-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
-              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+              ? "bg-white/10 text-sky-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
           )}
         >
-          <Search className="w-[16px] h-[16px]" />
-          {currentScreen === 'search' && <span className="text-[10px] font-bold tracking-wider uppercase">Search</span>}
+          <Search className="w-5 h-5" />
+          {currentScreen === 'search' && <span className="text-[12px] font-bold tracking-tight">Search</span>}
         </button>
 
         <button 
           onClick={() => { setCurrentScreen('analytics'); setSelectedPostId(null); setHighlightCommentId(null); }}
           className={cn(
-            "rounded-full transition-all flex items-center justify-center font-medium",
+            "rounded-2xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'analytics' 
-              ? "bg-white/10 text-purple-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
-              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+              ? "bg-white/10 text-purple-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
           )}
         >
-          <LayoutDashboard className="w-[16px] h-[16px]" />
-          {currentScreen === 'analytics' && <span className="text-[10px] font-bold tracking-wider uppercase">Stats</span>}
+          <LayoutDashboard className="w-5 h-5" />
+          {currentScreen === 'analytics' && <span className="text-[12px] font-bold tracking-tight">Stats</span>}
         </button>
 
         <button 
@@ -1345,30 +1343,30 @@ export default function App() {
             setHighlightCommentId(null);
           }}
           className={cn(
-            "rounded-full transition-all flex items-center justify-center font-medium relative",
+            "rounded-2xl transition-all flex items-center justify-center font-semibold relative",
             currentScreen === 'notifications' 
-              ? "bg-white/10 text-emerald-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
-              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+              ? "bg-white/10 text-emerald-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
           )}
         >
-          <Bell className="w-[16px] h-[16px]" />
-          {currentScreen === 'notifications' && <span className="text-[10px] font-bold tracking-wider uppercase">Alerts</span>}
+          <Bell className="w-5 h-5" />
+          {currentScreen === 'notifications' && <span className="text-[12px] font-bold tracking-tight">Alerts</span>}
           {unreadNotifications > 0 && currentScreen !== 'notifications' && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 border border-slate-900 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-900 rounded-full shadow-[0_0_12px_rgba(16,185,129,0.7)]" />
           )}
         </button>
 
         <button 
           onClick={() => { setCurrentScreen('profile'); setSelectedPostId(null); setHighlightCommentId(null); }}
           className={cn(
-            "rounded-full transition-all flex items-center justify-center font-medium",
+            "rounded-2xl transition-all flex items-center justify-center font-semibold",
             currentScreen === 'profile' 
-              ? "bg-white/10 text-pink-400 px-3 py-1.5 gap-2 shadow-md scale-100" 
-              : "text-slate-400/70 hover:text-slate-200 hover:bg-white/5 p-2 w-[36px] h-[36px]"
+              ? "bg-white/10 text-pink-400 px-4 py-2 gap-2.5 shadow-lg scale-105" 
+              : "text-slate-400 hover:text-slate-200 hover:bg-white/5 p-2.5 w-[44px] h-[44px]"
           )}
         >
-          <UserIcon className="w-[16px] h-[16px]" />
-          {currentScreen === 'profile' && <span className="text-[10px] font-bold tracking-wider uppercase">Profile</span>}
+          <UserIcon className="w-5 h-5" />
+          {currentScreen === 'profile' && <span className="text-[12px] font-bold tracking-tight">Profile</span>}
         </button>
       </nav>
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />

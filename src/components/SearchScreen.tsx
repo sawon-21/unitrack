@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, ArrowLeft, BadgeCheck, Activity } from 'lucide-react';
+import { Search, ArrowLeft, BadgeCheck, Activity, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PostCard } from './PostCard';
 import { Post, User } from '../types';
@@ -215,8 +215,20 @@ export function SearchScreen({
             placeholder="Search issues or @username..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-full py-2.5 pl-12 pr-4 text-slate-100 placeholder-slate-400/70 focus:outline-none focus:ring-1 focus:ring-sky-500/50 transition-all shadow-2xl"
+            className="w-full bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-full py-2.5 pl-12 pr-12 text-slate-100 placeholder-slate-400/70 focus:outline-none focus:ring-1 focus:ring-sky-500/50 transition-all shadow-2xl"
           />
+          
+          {searchQuery && (
+            <button 
+              onClick={() => {
+                setSearchQuery('');
+                inputRef.current?.focus();
+              }}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors pointer-events-auto"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
           
           {showUserDropdown && suggestedUsers.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-30 max-h-60 overflow-y-auto">
@@ -233,7 +245,7 @@ export function SearchScreen({
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-200">@{user.username}</span>
                     {(user.role === 'Administrator' || user.role === 'Faculty') && (
-                      <BadgeCheck className="w-4 h-4 text-white fill-[#1877F2]" />
+                      <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-slate-900 stroke-[1.5px]" />
                     )}
                   </div>
                 </div>
