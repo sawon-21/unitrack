@@ -1,4 +1,4 @@
-const CACHE_NAME = 'unitrack-cache-v1';
+const CACHE_NAME = 'unitrack-cache-v2';
 const urlsToCache = [
   '/',
   '/index.html',
