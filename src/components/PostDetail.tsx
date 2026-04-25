@@ -166,16 +166,12 @@ export function PostDetail({
                   if (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string' && children[0].startsWith('http')) {
                     try {
                       const urlObj = new URL(children[0]);
-                      if (children[0].length > urlObj.origin.length + 1) {
-                        linkText = `${urlObj.origin}/...`;
-                      }
+                      linkText = `${urlObj.origin}/...`;
                     } catch {}
                   } else if (typeof children === 'string' && children.startsWith('http')) {
                     try {
                       const urlObj = new URL(children);
-                      if (children.length > urlObj.origin.length + 1) {
-                        linkText = `${urlObj.origin}/...`;
-                      }
+                      linkText = `${urlObj.origin}/...`;
                     } catch {}
                   }
 
@@ -301,16 +297,12 @@ export function PostDetail({
                   if (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string' && children[0].startsWith('http')) {
                     try {
                       const urlObj = new URL(children[0]);
-                      if (children[0].length > urlObj.origin.length + 1) {
-                        linkText = `${urlObj.origin}/...`;
-                      }
+                      linkText = `${urlObj.origin}/...`;
                     } catch {}
                   } else if (typeof children === 'string' && children.startsWith('http')) {
                     try {
                       const urlObj = new URL(children);
-                      if (children.length > urlObj.origin.length + 1) {
-                        linkText = `${urlObj.origin}/...`;
-                      }
+                      linkText = `${urlObj.origin}/...`;
                     } catch {}
                   }
 
@@ -359,7 +351,7 @@ export function PostDetail({
             <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
               {images.slice(0, 2).map((url, index) => (
                 <div 
-                  key={index}
+                  key={url}
                   className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
                   onClick={() => {
                     setZoomedImageIndex(index);

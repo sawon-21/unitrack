@@ -12,6 +12,7 @@ interface DashboardProps {
   posts: Post[];
   users: Record<string, User>;
   currentUser?: User;
+  activeTab: 'all' | 'my' | 'track';
   onPostClick: (id: string) => void;
   onOpenSubmit: () => void;
   onLike: (id: string) => void;
@@ -31,6 +32,7 @@ export function Dashboard({
   posts, 
   users, 
   currentUser, 
+  activeTab,
   onPostClick, 
   onOpenSubmit, 
   onLike, 
@@ -110,6 +112,15 @@ export function Dashboard({
 
   // Duplicate posts for infinite scroll effect
   const infinitePinnedPosts = [...pinnedPosts, ...pinnedPosts];
+
+  const statusBgColors: Record<string, string> = {
+    'New': 'bg-teal-500/10 border-teal-500/30',
+    'Acknowledged': 'bg-yellow-500/10 border-yellow-500/30',
+    'Investigating': 'bg-orange-500/10 border-orange-500/30',
+    'Dev In-Progress': 'bg-purple-500/10 border-purple-500/30',
+    'Resolved': 'bg-emerald-500/10 border-emerald-500/30',
+    'Reopened': 'bg-blue-500/10 border-blue-500/30',
+  };
 
   return (
     <motion.div 
@@ -206,6 +217,7 @@ export function Dashboard({
                     post={post} 
                     author={users[post.userId]} 
                     currentUser={currentUser}
+                    customBgClass={activeTab === 'track' ? statusBgColors[post.status] : undefined}
                     onClick={() => onPostClick(post.id)} 
                     onLike={() => onLike(post.id)}
                     onDislike={() => onDislike(post.id)}

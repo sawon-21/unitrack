@@ -81,8 +81,7 @@ export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost
   return (
     <div className="pb-20 animate-in fade-in duration-200">
       <header className={cn(
-        "fixed top-0 left-0 right-0 z-50 flex justify-center items-center px-4 pt-4 pb-2 drop-shadow-xl transition-transform duration-300 pointer-events-none",
-        scrollDirection === 'down' ? "-translate-y-[150%] opacity-0" : "translate-y-0 opacity-100"
+        "fixed top-0 left-0 right-0 z-50 flex justify-center items-center px-4 pt-4 pb-2 drop-shadow-xl transition-transform duration-300 pointer-events-none"
       )}>
         <h1 className="font-bold text-slate-100 bg-slate-900/60 backdrop-blur-xl border border-white/5 px-6 py-2 rounded-full shadow-2xl pointer-events-auto uppercase tracking-widest text-[10px]">Profile</h1>
       </header>

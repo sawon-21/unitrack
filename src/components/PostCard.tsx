@@ -13,6 +13,7 @@ interface PostCardProps {
   post: Post;
   author?: User;
   currentUser?: User;
+  customBgClass?: string;
   onClick: () => void;
   onLike: () => void;
   onDislike: () => void;
@@ -29,6 +30,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   post, 
   author, 
   currentUser, 
+  customBgClass,
   onClick, 
   onLike, 
   onDislike, 
@@ -86,7 +88,10 @@ export const PostCard: React.FC<PostCardProps> = ({
       exit={{ opacity: 0 }}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      className="border-b border-slate-800 p-4 bg-slate-950/20 hover:bg-slate-900/40 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-slate-900/50 hover:relative hover:z-10 flex flex-col gap-2"
+      className={cn(
+        "border-b border-slate-800 p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-slate-900/50 hover:relative hover:z-10 flex flex-col gap-2",
+        customBgClass || "bg-slate-950/20 hover:bg-slate-900/40"
+      )}
     >
       {post.repostedBy && post.repostedBy.length > 0 && (
         <div 
@@ -158,16 +163,12 @@ export const PostCard: React.FC<PostCardProps> = ({
                   if (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string' && children[0].startsWith('http')) {
                     try {
                       const urlObj = new URL(children[0]);
-                      if (children[0].length > urlObj.origin.length + 1) {
-                        linkText = `${urlObj.origin}/...`;
-                      }
+                      linkText = `${urlObj.origin}/...`;
                     } catch {}
                   } else if (typeof children === 'string' && children.startsWith('http')) {
                     try {
                       const urlObj = new URL(children);
-                      if (children.length > urlObj.origin.length + 1) {
-                        linkText = `${urlObj.origin}/...`;
-                      }
+                      linkText = `${urlObj.origin}/...`;
                     } catch {}
                   }
 
@@ -197,9 +198,9 @@ export const PostCard: React.FC<PostCardProps> = ({
 
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-0.5 mt-1">
-              {post.tags.slice(0, 3).map(tag => (
+              {post.tags.slice(0, 3).map((tag, index) => (
                 <span 
-                  key={tag} 
+                  key={`${tag}-${index}`} 
                   className="text-[10px] text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-1.5 py-0.5 rounded-full cursor-pointer transition-colors font-medium"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -221,7 +222,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <div className={cn("mt-3 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
               {images.slice(0, 2).map((url, index) => (
                 <div 
-                  key={index}
+                  key={url}
                   className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
                   onClick={(e) => {
                     e.stopPropagation();

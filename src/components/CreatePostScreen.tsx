@@ -256,8 +256,8 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
               />
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {tags.map((tag, idx) => (
-                    <span key={idx} className="text-xs text-sky-400 bg-sky-400/10 px-2 py-1 rounded-full">
+                  {tags.map((tag) => (
+                    <span key={tag} className="text-xs text-sky-400 bg-sky-400/10 px-2 py-1 rounded-full">
                       #{tag}
                     </span>
                   ))}
@@ -292,7 +292,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
               {imageUrls.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {imageUrls.map((url, index) => (
-                    <div key={index} className="rounded-lg overflow-hidden border border-slate-800 bg-slate-950 relative group aspect-square">
+                    <div key={url} className="rounded-lg overflow-hidden border border-slate-800 bg-slate-950 relative group aspect-square">
                       <img 
                         src={url} 
                         alt={`Preview ${index + 1}`} 

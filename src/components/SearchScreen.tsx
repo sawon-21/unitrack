@@ -133,6 +133,9 @@ export function SearchScreen({
     }
 
     if (isStatusSearch) {
+      if (statusQuery === 'pending') {
+        return postsWithAuthor.filter(post => post.status.toLowerCase() === 'new');
+      }
       return postsWithAuthor.filter(post => post.status.toLowerCase() === statusQuery);
     }
 
@@ -178,11 +181,17 @@ export function SearchScreen({
   }, []);
 
   const trackPosts = useMemo(() => {
+    if (!currentUser) return [];
     return [...posts]
-      .filter(p => p.status !== 'New')
+      .filter(p => (
+        p.userId === currentUser.id || 
+        p.viewedBy?.includes(currentUser.id) || 
+        p.likedBy?.includes(currentUser.id) || 
+        p.repostedBy?.includes(currentUser.id)
+      ))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 10);
-  }, [posts]);
+  }, [posts, currentUser]);
 
   const statusColors: Record<string, string> = {
     'New': 'bg-teal-500',
@@ -213,8 +222,7 @@ export function SearchScreen({
       className="pb-20"
     >
       <div className={cn(
-        "fixed top-0 left-0 right-0 z-50 px-4 pt-4 pb-2 transition-transform duration-300 pointer-events-none mt-0",
-        scrollDirection === 'down' ? "-translate-y-[150%] opacity-0" : "translate-y-0 opacity-100"
+        "fixed top-0 left-0 right-0 z-50 px-4 pt-4 pb-2 transition-transform duration-300 pointer-events-none mt-0"
       )}>
         <div className="relative pointer-events-auto drop-shadow-xl" ref={containerRef}>
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -313,6 +321,7 @@ export function SearchScreen({
               post={post} 
               author={users[post.userId]} 
               currentUser={currentUser}
+              customBgClass={searchQuery.toLowerCase().startsWith('status:') ? statusBgColors[post.status] : undefined}
               onClick={() => onPostClick(post.id)} 
               onLike={() => onLike(post.id)}
               onDislike={() => onDislike(post.id)}

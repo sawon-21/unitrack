@@ -1,4 +1,5 @@
 import React from 'react';
+import { useScrollDirection } from '../hooks/useScrollDirection';
 import { cn } from '../utils';
 
 interface HeaderProps {
@@ -7,10 +8,15 @@ interface HeaderProps {
 }
 
 export function Header({ activeTab, onTabChange }: HeaderProps) {
+  const scrollDirection = useScrollDirection();
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex flex-col drop-shadow-2xl pointer-events-none pt-4 pb-2">
+    <header className={cn(
+      "fixed top-0 left-0 right-0 z-50 flex flex-col pointer-events-none pt-4 pb-2 transition-transform duration-300",
+      scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
+    )}>
       <div className="flex justify-center w-full px-4 pointer-events-auto">
-        <div className="bg-[#0A0F1E] border border-slate-800/40 p-1.5 rounded-2xl flex gap-1.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)] w-full max-w-sm">
+        <div className="bg-[#0A0F1E] border border-slate-800/40 p-1.5 rounded-2xl flex gap-1.5 shadow-2xl w-full max-w-sm backdrop-blur-md">
           <button
             onClick={() => onTabChange('all')}
             className={cn(

@@ -408,6 +408,8 @@ export default function App() {
   const handleStatusClick = (status: string) => {
     if (status === 'All') {
       setInitialSearchQuery('');
+    } else if (status === 'New') {
+      setInitialSearchQuery('status:pending');
     } else if (status === 'Pending') {
       setInitialSearchQuery('status:pending');
     } else {
@@ -967,11 +969,19 @@ export default function App() {
     if (activeTab === 'my' && currentUser) {
       return posts.filter(p => p.userId === currentUser.id);
     }
-    if (activeTab === 'track') {
+    if (activeTab === 'track' && currentUser) {
       return [...posts]
-        .filter(p => p.status !== 'New')
+        .filter(p => (
+            (p.statusHistory && p.statusHistory.length > 0) &&
+            (p.userId === currentUser.id || 
+            p.viewedBy?.includes(currentUser.id) || 
+            p.likedBy?.includes(currentUser.id) || 
+            p.repostedBy?.includes(currentUser.id))
+        ))
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
+    if (activeTab === 'track') return [];
+
     return posts;
   }, [posts, activeTab, currentUser]);
 
@@ -1097,6 +1107,7 @@ export default function App() {
                 posts={displayedPosts} 
                 users={users} 
                 currentUser={activeUser || undefined}
+                activeTab={activeTab}
                 onPostClick={handlePostClick} 
                 onOpenSubmit={() => {
                   if (!activeUser) handleSignIn();
