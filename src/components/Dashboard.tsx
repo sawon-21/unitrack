@@ -52,7 +52,8 @@ export function Dashboard({
   const { pinnedPosts, regularPosts, uniquePosts, stats } = React.useMemo(() => {
     const pinned = posts.filter(p => p.isPinned);
     // Pinned posts should also appear in the regular feed as requested
-    const regular = posts; 
+    const regular = posts;
+    
     const unique = posts.filter(p => !p.originalPostId);
     
     return {
@@ -62,7 +63,7 @@ export function Dashboard({
       stats: {
         total: unique.length,
         resolved: unique.filter(p => p.status === 'Resolved').length,
-        pending: unique.filter(p => p.status !== 'Resolved').length,
+        pending: unique.filter(p => p.status === 'New').length,
       }
     };
   }, [posts]);
@@ -144,7 +145,7 @@ export function Dashboard({
           
           <div 
             className="flex-1 text-center cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => onStatusClick && onStatusClick('Pending')}
+            onClick={() => onStatusClick && onStatusClick('New')}
           >
             <div className="text-base font-black text-[#F97316] mb-0.5 tracking-tight">{stats.pending}</div>
             <div className="text-[9px] text-slate-500 uppercase font-extrabold tracking-[0.15em]">Pending</div>

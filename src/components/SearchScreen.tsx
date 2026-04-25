@@ -193,6 +193,15 @@ export function SearchScreen({
     'Reopened': 'bg-blue-500',
   };
 
+  const statusBgColors: Record<string, string> = {
+    'New': 'bg-teal-500/10 border-teal-500/30',
+    'Acknowledged': 'bg-yellow-500/10 border-yellow-500/30',
+    'Investigating': 'bg-orange-500/10 border-orange-500/30',
+    'Dev In-Progress': 'bg-purple-500/10 border-purple-500/30',
+    'Resolved': 'bg-emerald-500/10 border-emerald-500/30',
+    'Reopened': 'bg-blue-500/10 border-blue-500/30',
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -267,7 +276,10 @@ export function SearchScreen({
                   key={post.id}
                   onPointerDown={handlePointerDown}
                   onPointerUp={(e) => handlePointerUp(e, post.id)}
-                  className="flex items-start gap-4 p-4 bg-slate-900/50 border border-slate-800 rounded-xl cursor-pointer hover:bg-slate-800 transition-colors group"
+                  className={cn(
+                    "flex items-start gap-4 p-4 rounded-xl cursor-pointer hover:opacity-80 transition-opacity group border",
+                    statusBgColors[post.status] || "bg-slate-900/50 border-slate-800"
+                  )}
                 >
                   <div className={cn("w-1.5 rounded-full shrink-0 self-stretch min-h-[48px]", statusColors[post.status])} />
                   <div className="flex-1 min-w-0 py-0.5">

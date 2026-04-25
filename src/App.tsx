@@ -147,7 +147,20 @@ export default function App() {
 
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+
+    const handleNav = (e: any) => {
+      if (e.detail) {
+        setSelectedPostId(e.detail);
+        setCurrentScreen('detail');
+        window.history.pushState(null, '', `?post=${e.detail}`);
+      }
+    };
+    window.addEventListener('navigate-post', handleNav);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('navigate-post', handleNav);
+    };
   }, []);
 
   useEffect(() => {
@@ -157,7 +170,14 @@ export default function App() {
       return;
     }
 
+    let snapshotUnsubscribe: (() => void) | undefined;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      if (snapshotUnsubscribe) {
+        snapshotUnsubscribe();
+        snapshotUnsubscribe = undefined;
+      }
+
       if (user) {
         // Try getting cached user first for immediate display
         const cachedUser = localStorage.getItem('cached_user');
@@ -166,30 +186,38 @@ export default function App() {
         }
 
         const userRef = doc(db!, 'users', user.uid);
-        try {
-          const userSnap = await getDoc(userRef);
-          
-          let userData: User;
+        let initialCheck = true;
+        
+        snapshotUnsubscribe = onSnapshot(userRef, async (userSnap) => {
           if (!userSnap.exists()) {
-            userData = {
-              id: user.uid,
-              username: user.email?.split('@')[0] || `user_${user.uid.slice(0, 5)}`,
-              role: 'Student',
-              usernameChanged: false
-            };
-            try {
-              await setDoc(userRef, userData);
-            } catch (error) {
-              handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
+            if (initialCheck) {
+              const userData: User = {
+                id: user.uid,
+                username: user.email?.split('@')[0] || `user_${user.uid.slice(0, 5)}`,
+                role: 'Student',
+                usernameChanged: false
+              };
+              try {
+                await setDoc(userRef, userData);
+              } catch (error) {
+                handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
+              }
+            } else {
+              // User doc was deleted while they were logged in -> secure session expiration
+              auth.signOut();
+              setCurrentUser(null);
+              localStorage.removeItem('cached_user');
+              alert('Your account has been deactivated. You have been signed out.');
             }
           } else {
-            userData = userSnap.data() as User;
+            const userData = userSnap.data() as User;
+            setCurrentUser(userData);
+            localStorage.setItem('cached_user', JSON.stringify(userData));
           }
-          setCurrentUser(userData);
-          localStorage.setItem('cached_user', JSON.stringify(userData));
-        } catch (error) {
+          initialCheck = false;
+        }, (error) => {
           handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
-        }
+        });
       } else {
         setCurrentUser(null);
         localStorage.removeItem('cached_user');
@@ -197,7 +225,10 @@ export default function App() {
       setIsAuthReady(true);
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (snapshotUnsubscribe) snapshotUnsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -1060,7 +1091,7 @@ export default function App() {
         )}
         <AnimatePresence mode="wait">
           {currentScreen === 'dashboard' && (
-            <div className="pt-16">
+            <div className="pt-20 pb-20">
               <Dashboard 
                 key="dashboard"
                 posts={displayedPosts} 

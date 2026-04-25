@@ -20,12 +20,24 @@ interface AnalyticsDashboardProps {
 
 export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick, onDeletePost }: AnalyticsDashboardProps) {
   const scrollDirection = useScrollDirection();
+  const [sortBy, setSortBy] = React.useState<'engagement' | 'newest' | 'oldest' | 'likes' | 'comments' | 'views'>('engagement');
+
   // Filter out admin posts
   const userPosts = posts.filter(p => users[p.userId]?.role !== 'Administrator');
 
-  // Calculate top 20 posts based on score
-  // Top post 1st check how many repost, then reach/view, then react and comment
   const sortedPosts = [...userPosts].sort((a, b) => {
+    if (sortBy === 'newest') {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    } else if (sortBy === 'oldest') {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    } else if (sortBy === 'likes') {
+      return (b.likes || 0) - (a.likes || 0);
+    } else if (sortBy === 'comments') {
+      return (b.commentCount || 0) - (a.commentCount || 0);
+    } else if (sortBy === 'views') {
+      return (b.views || 0) - (a.views || 0);
+    }
+    // Default: engagement
     const repostsDiff = (b.reposts || 0) - (a.reposts || 0);
     if (repostsDiff !== 0) return repostsDiff;
     
@@ -69,8 +81,22 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
         </div>
       </div>
 
-      <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/50">
+      <div className="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center z-20 sticky top-0 backdrop-blur-md">
         <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Top 20 Posts</h2>
+        <div className="flex items-center gap-2">
+           <select 
+             value={sortBy}
+             onChange={(e) => setSortBy(e.target.value as any)}
+             className="bg-slate-900/80 border border-slate-700/50 text-slate-300 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded cursor-pointer focus:outline-none focus:border-sky-500 hover:bg-slate-800 transition-colors shadow-lg"
+           >
+             <option value="engagement">Best Engagement</option>
+             <option value="newest">Newest First</option>
+             <option value="oldest">Oldest First</option>
+             <option value="likes">Most Liked</option>
+             <option value="comments">Most Discussed</option>
+             <option value="views">Most Viewed</option>
+           </select>
+        </div>
       </div>
 
       <div className="flex flex-col">

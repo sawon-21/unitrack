@@ -86,7 +86,7 @@ export const PostCard: React.FC<PostCardProps> = ({
       exit={{ opacity: 0 }}
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
-      className="border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex flex-col gap-2"
+      className="border-b border-slate-800 p-4 bg-slate-950/20 hover:bg-slate-900/40 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-slate-900/50 hover:relative hover:z-10 flex flex-col gap-2"
     >
       {post.repostedBy && post.repostedBy.length > 0 && (
         <div 
@@ -142,11 +142,53 @@ export const PostCard: React.FC<PostCardProps> = ({
             <Markdown 
               remarkPlugins={[remarkGfm]}
               components={{
-                a: ({node, ...props}) => (
-                  <a {...props} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-block bg-slate-800 hover:bg-slate-700 text-sky-400 px-3 py-1 rounded-md text-sm font-medium transition-colors my-1 border border-slate-700 no-underline">
-                    🔗 Click to visit
-                  </a>
-                )
+                a: ({node, children, href, ...props}) => {
+                  const getPostId = (url: string) => {
+                    try {
+                      if (url.startsWith('?post=')) {
+                        return new URLSearchParams(url).get('post');
+                      }
+                      const parsed = new URL(url, window.location.origin);
+                      return parsed.searchParams.get('post');
+                    } catch { return null; }
+                  };
+                  const postId = href ? getPostId(href) : null;
+                  
+                  let linkText = children;
+                  if (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string' && children[0].startsWith('http')) {
+                    try {
+                      const urlObj = new URL(children[0]);
+                      if (children[0].length > urlObj.origin.length + 1) {
+                        linkText = `${urlObj.origin}/...`;
+                      }
+                    } catch {}
+                  } else if (typeof children === 'string' && children.startsWith('http')) {
+                    try {
+                      const urlObj = new URL(children);
+                      if (children.length > urlObj.origin.length + 1) {
+                        linkText = `${urlObj.origin}/...`;
+                      }
+                    } catch {}
+                  }
+
+                  return (
+                    <a {...props} 
+                       href={href}
+                       target={postId ? undefined : "_blank"} 
+                       rel={postId ? undefined : "noopener noreferrer"} 
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         if (postId) {
+                           e.preventDefault();
+                           window.dispatchEvent(new CustomEvent('navigate-post', { detail: postId }));
+                         }
+                       }} 
+                       className="inline px-1 py-0.5 bg-sky-500/10 text-sky-400 shadow-[0_0_8px_rgba(14,165,233,0.2)] rounded border border-sky-500/20 hover:bg-sky-500/20 hover:text-sky-300 hover:shadow-[0_0_12px_rgba(14,165,233,0.4)] transition-all font-medium break-all"
+                    >
+                      {linkText}
+                    </a>
+                  );
+                }
               }}
             >
               {post.description}
