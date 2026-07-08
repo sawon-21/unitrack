@@ -17,7 +17,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'Admin') ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'administration') ||
           (request.auth.token.email == "info.vaijan@gmail.com" && request.auth.token.email_verified == true)); // Default admin
     }
 
@@ -28,12 +28,15 @@ service cloud.firestore {
     match /users/{userId} {
       // Only authenticated users can see profiles
       allow read: if isAuthenticated();
-      // Only the user themselves can create/update their profile
+      // Only the user themselves can create their profile. Role must be 'user' by default.
       allow create: if isAuthenticated() && isOwner(userId) && 
-                      request.resource.data.get('role', 'Student') == 'Student';
-      allow update: if isAuthenticated() && isOwner(userId) && 
-                      // Prevent self-role escalation
-                      request.resource.data.get('role', resource.data.role) == resource.data.role;
+                      request.resource.data.get('role', 'user') == 'user';
+      allow update: if isAuthenticated() && (
+                      (isOwner(userId) && 
+                       // Prevent self-role escalation unless an admin is doing it
+                       request.resource.data.get('role', resource.data.role) == resource.data.role) 
+                      || isAdmin()
+                    );
       allow delete: if isAdmin();
     }
     
