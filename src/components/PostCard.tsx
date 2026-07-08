@@ -24,6 +24,8 @@ interface PostCardProps {
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
   onDelete?: () => void;
+  onCommentClick?: () => void;
+  onView?: () => void;
 }
 
 export const PostCard: React.FC<PostCardProps> = ({ 
@@ -40,25 +42,34 @@ export const PostCard: React.FC<PostCardProps> = ({
   onTagClick,
   onStatusClick,
   onCategoryClick,
-  onDelete
+  onDelete,
+  onCommentClick,
+  onView
 }) => {
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomedImageIndex, setZoomedImageIndex] = useState(0);
-  const pointerDownPos = React.useRef<{x: number, y: number} | null>(null);
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const hasViewedRef = React.useRef(false);
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerDownPos.current = { x: e.clientX, y: e.clientY };
-  };
+  React.useEffect(() => {
+    if (!onView || !cardRef.current || hasViewedRef.current) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !hasViewedRef.current) {
+          hasViewedRef.current = true;
+          onView();
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    
+    observer.observe(cardRef.current);
+    
+    return () => observer.disconnect();
+  }, [onView]);
 
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!pointerDownPos.current) return;
-    const dx = Math.abs(e.clientX - pointerDownPos.current.x);
-    const dy = Math.abs(e.clientY - pointerDownPos.current.y);
-    if (dx < 10 && dy < 10) {
-      onClick();
-    }
-    pointerDownPos.current = null;
-  };
   const isAnonymous = post.isAnonymous;
   const displayUsername = author?.username || 'user';
   const authorHandle = isAnonymous ? `anon_${post.id.substring(0, 6)}` : displayUsername.toLowerCase();
@@ -83,14 +94,13 @@ export const PostCard: React.FC<PostCardProps> = ({
 
   return (
     <motion.div 
+      ref={cardRef}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
       className={cn(
-        "border-b border-slate-800 p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-slate-900/50 hover:relative hover:z-10 flex flex-col gap-2",
-        customBgClass || "bg-slate-950/20 hover:bg-slate-900/40"
+        "border-b border-slate-800 p-4 transition-all duration-300 hover:shadow-lg hover:shadow-slate-900/50 flex flex-col gap-2",
+        "bg-slate-950/20 hover:bg-slate-900/40"
       )}
     >
       {post.repostedBy && post.repostedBy.length > 0 && (
@@ -119,8 +129,11 @@ export const PostCard: React.FC<PostCardProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-base truncate">
               <span className="font-bold text-slate-400 truncate hover:text-slate-300 transition-colors">@{authorHandle}</span>
-              {!isAnonymous && (author?.role === 'Administrator' || author?.role === 'Faculty') && (
+              {!isAnonymous && author?.role === 'administration' && (
                 <BadgeCheck className="w-5 h-5 fill-[#1877F2] text-white stroke-[1.5px]" />
+              )}
+              {!isAnonymous && author?.role === 'teacher' && (
+                <BadgeCheck className="w-5 h-5 fill-green-500 text-white stroke-[1.5px]" />
               )}
               <span className="text-slate-500">·</span>
               <span className="text-slate-500 shrink-0 hover:text-slate-400 transition-colors">
@@ -195,6 +208,15 @@ export const PostCard: React.FC<PostCardProps> = ({
               {post.description}
             </Markdown>
           </div>
+          
+          {post.description && post.description.length > 200 && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); onClick(); }}
+              className="text-sky-400 text-sm font-semibold hover:text-sky-300 transition-colors mt-2 text-left w-fit"
+            >
+              see details ...
+            </button>
+          )}
 
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-0.5 mt-1">
@@ -222,7 +244,7 @@ export const PostCard: React.FC<PostCardProps> = ({
             <div className={cn("mt-3 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
               {images.slice(0, 2).map((url, index) => (
                 <div 
-                  key={url}
+                  key={`${url}-${index}`}
                   className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -277,7 +299,10 @@ export const PostCard: React.FC<PostCardProps> = ({
           </div>
 
           <div className="flex items-center justify-between mt-3 text-slate-500 max-w-md">
-            <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
+            <button 
+              onClick={(e) => { e.stopPropagation(); if (onCommentClick) onCommentClick(); else onClick(); }}
+              className="flex items-center gap-2 hover:text-sky-400 group transition-colors"
+            >
               <div className="p-2 -m-2 rounded-full group-hover:bg-sky-500/10"><MessageSquare className="w-5 h-5" /></div>
               <span className="text-sm">{post.commentCount}</span>
             </button>

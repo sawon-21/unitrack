@@ -292,7 +292,7 @@ export function CreatePostScreen({ onBack, onSubmit, currentUser }: CreatePostSc
               {imageUrls.length > 0 && (
                 <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {imageUrls.map((url, index) => (
-                    <div key={url} className="rounded-lg overflow-hidden border border-slate-800 bg-slate-950 relative group aspect-square">
+                    <div key={`${url}-${index}`} className="rounded-lg overflow-hidden border border-slate-800 bg-slate-950 relative group aspect-square">
                       <img 
                         src={url} 
                         alt={`Preview ${index + 1}`} 

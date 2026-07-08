@@ -24,6 +24,7 @@ interface SearchScreenProps {
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
   onDeletePost?: (id: string) => void;
+  onView?: (id: string) => void;
   restoreScrollPosition?: () => void;
 }
 
@@ -42,6 +43,7 @@ export function SearchScreen({
   onStatusClick,
   onCategoryClick,
   onDeletePost,
+  onView,
   restoreScrollPosition
 }: SearchScreenProps) {
   const scrollDirection = useScrollDirection();
@@ -50,21 +52,6 @@ export function SearchScreen({
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const pointerDownPos = useRef<{x: number, y: number} | null>(null);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerDownPos.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const handlePointerUp = (e: React.PointerEvent, id: string) => {
-    if (!pointerDownPos.current) return;
-    const dx = Math.abs(e.clientX - pointerDownPos.current.x);
-    const dy = Math.abs(e.clientY - pointerDownPos.current.y);
-    if (dx < 10 && dy < 10) {
-      onPostClick(id);
-    }
-    pointerDownPos.current = null;
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -202,14 +189,6 @@ export function SearchScreen({
     'Reopened': 'bg-blue-500',
   };
 
-  const statusBgColors: Record<string, string> = {
-    'New': 'bg-teal-500/10 border-teal-500/30',
-    'Acknowledged': 'bg-yellow-500/10 border-yellow-500/30',
-    'Investigating': 'bg-orange-500/10 border-orange-500/30',
-    'Dev In-Progress': 'bg-purple-500/10 border-purple-500/30',
-    'Resolved': 'bg-emerald-500/10 border-emerald-500/30',
-    'Reopened': 'bg-blue-500/10 border-blue-500/30',
-  };
 
   return (
     <motion.div 
@@ -249,9 +228,9 @@ export function SearchScreen({
           
           {showUserDropdown && suggestedUsers.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-30 max-h-60 overflow-y-auto">
-              {suggestedUsers.map(user => (
+              {suggestedUsers.map((user, index) => (
                 <div 
-                  key={user.id}
+                  key={`${user.id}-${index}`}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     handleUserSelect(user.username);
@@ -261,8 +240,11 @@ export function SearchScreen({
                   <Avatar user={user} username={user.username} className="w-8 h-8 text-xs" />
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-200">@{user.username}</span>
-                    {(user.role === 'Administrator' || user.role === 'Faculty') && (
+                    {user.role === 'administration' && (
                       <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-white stroke-[1.5px]" />
+                    )}
+                    {user.role === 'teacher' && (
+                      <BadgeCheck className="w-4 h-4 fill-green-500 text-white stroke-[1.5px]" />
                     )}
                   </div>
                 </div>
@@ -279,14 +261,14 @@ export function SearchScreen({
               <Activity className="w-5 h-5 text-sky-500" /> Track Status
             </h2>
             <div className="space-y-3">
-              {trackPosts.map((post) => (
+              {trackPosts.map((post, index) => (
                 <div 
-                  key={post.id}
-                  onPointerDown={handlePointerDown}
-                  onPointerUp={(e) => handlePointerUp(e, post.id)}
+                  key={`${post.id}-${index}`}
+                  
+                  onClick={() => onPostClick(post.id)}
                   className={cn(
                     "flex items-start gap-4 p-4 rounded-xl cursor-pointer hover:opacity-80 transition-opacity group border",
-                    statusBgColors[post.status] || "bg-slate-900/50 border-slate-800"
+                    "bg-slate-900/50 border-slate-800"
                   )}
                 >
                   <div className={cn("w-1.5 rounded-full shrink-0 self-stretch min-h-[48px]", statusColors[post.status])} />
@@ -315,13 +297,13 @@ export function SearchScreen({
             </div>
           </div>
         ) : filteredPosts.length > 0 ? (
-          filteredPosts.map(post => (
+          filteredPosts.map((post, index) => (
             <PostCard 
-              key={post.id} 
+              key={`${post.id}-${index}`} 
               post={post} 
               author={users[post.userId]} 
               currentUser={currentUser}
-              customBgClass={searchQuery.toLowerCase().startsWith('status:') ? statusBgColors[post.status] : undefined}
+              
               onClick={() => onPostClick(post.id)} 
               onLike={() => onLike(post.id)}
               onDislike={() => onDislike(post.id)}
@@ -331,7 +313,15 @@ export function SearchScreen({
               onTagClick={onTagClick}
               onStatusClick={onStatusClick}
               onCategoryClick={onCategoryClick}
-              onDelete={currentUser?.role === 'Administrator' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
+              onView={() => onView && onView(post.id)}
+              onDelete={currentUser?.role === 'administration' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
+              onCommentClick={() => {
+                onPostClick(post.id);
+                setTimeout(() => {
+                  const el = document.getElementById('comments');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+              }}
             />
           ))
         ) : (

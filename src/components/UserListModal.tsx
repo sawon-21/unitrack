@@ -27,14 +27,17 @@ export const UserListModal: React.FC<UserListModalProps> = ({ title, users, onCl
             <p className="text-slate-500 text-center py-4">No users found.</p>
           ) : (
             <div className="flex flex-col gap-3">
-              {users.map(user => (
-                <div key={user.id} className="flex items-center gap-3 p-2 hover:bg-slate-800/50 rounded-lg transition-colors">
+              {users.map((user, index) => (
+                <div key={`${user.id}-${index}`} className="flex items-center gap-3 p-2 hover:bg-slate-800/50 rounded-lg transition-colors">
                   <Avatar user={user} username={user.username} className="w-10 h-10" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="font-bold text-slate-200 truncate">@{user.username}</p>
-                      {(user.role === 'Administrator' || user.role === 'Faculty') && (
+                      {user.role === 'administration' && (
                         <BadgeCheck className="w-4 h-4 fill-[#1877F2] text-white stroke-[1.5px] shrink-0" />
+                      )}
+                      {user.role === 'teacher' && (
+                        <BadgeCheck className="w-4 h-4 fill-green-500 text-white stroke-[1.5px] shrink-0" />
                       )}
                     </div>
                     <span className="text-xs font-medium text-slate-500">{user.role}</span>

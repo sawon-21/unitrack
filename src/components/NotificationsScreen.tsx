@@ -53,9 +53,9 @@ export function NotificationsScreen({ notifications, users, onNotificationClick,
             <p>When someone interacts with your posts, you'll find it here.</p>
           </div>
         ) : (
-          notifications.map(notification => (
+          notifications.map((notification, index) => (
             <div 
-              key={notification.id} 
+              key={`${notification.id}-${index}`} 
               onClick={() => onNotificationClick(notification.id, notification.postId, notification.commentId)}
               className={`border-b border-slate-800 p-4 hover:bg-slate-900/50 cursor-pointer transition-colors flex gap-3 ${!notification.read ? 'bg-sky-900/20 border-l-4 border-l-sky-500 shadow-[inset_4px_0_10px_rgba(14,165,233,0.2)]' : 'border-l-4 border-l-transparent'}`}
             >

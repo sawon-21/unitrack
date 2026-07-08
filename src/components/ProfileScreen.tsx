@@ -15,9 +15,10 @@ interface ProfileScreenProps {
   users: Record<string, User>;
   onLogout?: () => void;
   onGenerateDemoPost?: () => void;
+  onShowAdminPanel?: () => void;
 }
 
-export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost }: ProfileScreenProps) {
+export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost, onShowAdminPanel }: ProfileScreenProps) {
   const scrollDirection = useScrollDirection();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -103,8 +104,11 @@ export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost
         
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-2xl font-bold text-slate-100">@{currentUser.username}</h2>
-          {(currentUser.role === 'Administrator' || currentUser.role === 'Faculty') && (
+          {currentUser.role === 'administration' && (
             <BadgeCheck className="w-6 h-6 fill-[#1877F2] text-white stroke-[1.5px]" />
+          )}
+          {currentUser.role === 'teacher' && (
+            <BadgeCheck className="w-6 h-6 fill-green-500 text-white stroke-[1.5px]" />
           )}
         </div>
         <div className="flex gap-2">
@@ -122,13 +126,68 @@ export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost
       <div className="p-4">
         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Settings</h3>
         <div className="space-y-2">
+          {currentUser.role === 'user' && !currentUser.appliedForRole && (
+            <>
+              <button 
+                onClick={async () => {
+                  if(confirm("Apply for Student role?")) {
+                    try {
+                      await updateDoc(doc(db, 'users', currentUser.id), { appliedForRole: 'student' });
+                      toast.success('Applied for Student role successfully');
+                    } catch (e) { toast.error('Failed to apply'); }
+                  }
+                }}
+                className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-slate-300"
+              >
+                <div className="flex items-center gap-3">
+                  <BadgeCheck className="w-5 h-5 text-sky-400" />
+                  <span className="font-medium">Apply for Student Role</span>
+                </div>
+              </button>
+              <button 
+                onClick={async () => {
+                  if(confirm("Apply for Teacher role?")) {
+                    try {
+                      await updateDoc(doc(db, 'users', currentUser.id), { appliedForRole: 'teacher' });
+                      toast.success('Applied for Teacher role successfully');
+                    } catch (e) { toast.error('Failed to apply'); }
+                  }
+                }}
+                className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-slate-300"
+              >
+                <div className="flex items-center gap-3">
+                  <BadgeCheck className="w-5 h-5 text-green-500" />
+                  <span className="font-medium">Apply for Teacher Role</span>
+                </div>
+              </button>
+            </>
+          )}
+
+          {currentUser.appliedForRole && currentUser.role === 'user' && (
+             <div className="w-full flex justify-between p-4 bg-slate-900 rounded-xl border border-slate-800 text-slate-400">
+               <span className="font-medium">Application pending for {currentUser.appliedForRole}</span>
+             </div>
+          )}
+
           <button className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-slate-300">
             <div className="flex items-center gap-3">
               <Settings className="w-5 h-5 text-slate-400" />
               <span className="font-medium">Account Preferences</span>
             </div>
           </button>
-          {currentUser.role === 'Administrator' && onGenerateDemoPost && (
+          
+          {currentUser.role === 'administration' && onShowAdminPanel && (
+            <button 
+              onClick={onShowAdminPanel}
+              className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-sky-400"
+            >
+              <div className="flex items-center gap-3">
+                <BadgeCheck className="w-5 h-5" />
+                <span className="font-medium">Manage Users</span>
+              </div>
+            </button>
+          )}
+          {currentUser.role === 'administration' && onGenerateDemoPost && (
             <button 
               onClick={onGenerateDemoPost}
               className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-sky-400"

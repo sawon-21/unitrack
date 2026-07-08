@@ -16,28 +16,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showOtpPopup, setShowOtpPopup] = useState(false);
-  const [pendingSignUpData, setPendingSignUpData] = useState<any>(null);
-  const [otp, setOtp] = useState(['', '', '', '', '', '']);
-  const [generatedOtp, setGeneratedOtp] = useState('');
-
-  React.useEffect(() => {
-    if (showOtpPopup) {
-      const timer = setTimeout(() => {
-        setOtp(generatedOtp.split(''));
-      }, 15000);
-      return () => clearTimeout(timer);
-    } else {
-      setOtp(['', '', '', '', '', '']);
-      setGeneratedOtp('');
-    }
-  }, [showOtpPopup, generatedOtp]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
-    if (username.length < 3) {
+    if (!isLogin && username.length < 3) {
       setError('Username must be at least 3 characters');
       return;
     }
@@ -58,60 +42,32 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
     try {
       if (isLogin) {
-        // Find email by username
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('username', '==', username.toLowerCase()));
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty) {
-          throw new Error('auth/invalid-credential');
-        }
-
-        const userData = snapshot.docs[0].data();
-        const userId = snapshot.docs[0].id;
-        
-        // Brute-force protection
-        if (userData.lockoutUntil && new Date() < new Date(userData.lockoutUntil)) {
-          throw new Error('Account locked. Try again in 5 hours.');
-        }
-
-        let loginEmail = userData.email || `${username.toLowerCase()}@unitrack.app`;
-        
+        // Instead of querying `users` by `username`, we assume the user provides their login email
         try {
-          await signInWithEmailAndPassword(auth, loginEmail, pin);
-          // Reset attempts on success
-          await updateDoc(doc(db, 'users', userId), {
-              failedAttempts: 0,
-              lockoutUntil: null
-          });
+          await signInWithEmailAndPassword(auth, email, pin);
           onClose();
         } catch (err: any) {
           throw err;
         }
       } else {
-        // Check if username exists
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('username', '==', username.toLowerCase()));
-        const snapshot = await getDocs(q);
-        
-        if (!snapshot.empty) {
-          setError('Username already taken');
-          setLoading(false);
-          return;
-        }
-
-        // Set up OTP flow
-        const generated = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedOtp(generated);
-        setPendingSignUpData({ email, username, pin });
-        setShowOtpPopup(true);
-        setLoading(false);
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pin);
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+            id: userCredential.user.uid,
+            username: username.toLowerCase(),
+            email: email,
+            role: 'user',
+            usernameChanged: false,
+            createdAt: new Date().toISOString(),
+            failedAttempts: 0,
+            lockoutUntil: null
+        });
+        onClose();
       }
     } catch (err: any) {
       console.error('Full Auth Error:', err);
       console.error('Error Code:', err.code);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Invalid username or PIN');
+        setError('Invalid email or PIN');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('Email is already registered. Please try logging in.');
         setIsLogin(true);
@@ -132,66 +88,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   };
 
-  const handleOtpVerify = async () => {
-    setLoading(true);
-    try {
-        const { email, username, pin } = pendingSignUpData;
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pin);
-
-        await setDoc(doc(db, 'users', userCredential.user.uid), {
-            id: userCredential.user.uid,
-            username: username.toLowerCase(),
-            email: email,
-            role: 'Student',
-            usernameChanged: false,
-            createdAt: new Date().toISOString(),
-            failedAttempts: 0,
-            lockoutUntil: null
-        });
-        setShowOtpPopup(false);
-        onClose();
-    } catch(err: any) {
-        console.error('OTP verify error:', err);
-        setError('OTP verification failed: ' + err.message);
-    } finally {
-        setLoading(false);
-    }
-  };
-
   return (
     <AnimatePresence>
-        {showOtpPopup && (
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            >
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
-                    <h3 className="text-xl font-bold text-white mb-4">OTP Verification</h3>
-                    <p className="text-slate-400 mb-6 text-sm">Please verify your account. Waiting for auto-fill...</p>
-                    <div className="flex gap-2 justify-center mb-6">
-                        {otp.map((digit, i) => (
-                            <input
-                                key={i}
-                                type="text"
-                                maxLength={1}
-                                value={digit}
-                                readOnly
-                                className="w-10 h-12 bg-slate-950 border border-slate-800 text-white text-center text-xl rounded-lg font-mono focus:outline-none focus:border-sky-500"
-                            />
-                        ))}
-                    </div>
-                    <button
-                        onClick={handleOtpVerify}
-                        disabled={loading || otp.join('').length < 6}
-                        className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center disabled:opacity-50"
-                    >
-                        {loading ? <Loader2 className="animate-spin" /> : 'Verify'}
-                    </button>
-                </div>
-            </motion.div>
-        )}
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -237,26 +135,26 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_ ]/g, '').slice(0, 21))}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500 transition-colors"
-                  placeholder="Enter username"
-                  maxLength={21}
+                  placeholder="Enter email address"
                   required
                 />
               </div>
               {!isLogin && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Username</label>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_ ]/g, '').slice(0, 21))}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-sky-500 transition-colors"
-                    placeholder="Enter email address"
+                    placeholder="Enter username"
+                    maxLength={21}
                     required
                   />
                 </div>

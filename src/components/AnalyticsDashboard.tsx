@@ -23,7 +23,7 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
   const [sortBy, setSortBy] = React.useState<'engagement' | 'newest' | 'oldest' | 'likes' | 'comments' | 'views'>('engagement');
 
   // Filter out admin posts
-  const userPosts = posts.filter(p => users[p.userId]?.role !== 'Administrator');
+  const userPosts = posts.filter(p => users[p.userId]?.role !== 'administration');
 
   const sortedPosts = [...userPosts].sort((a, b) => {
     if (sortBy === 'newest') {
@@ -100,7 +100,7 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
 
       <div className="flex flex-col">
         {sortedPosts.map((post, index) => (
-          <div key={post.id} className="relative">
+          <div key={`${post.id}-${index}`} className="relative">
             <div className="absolute top-4 right-4 text-4xl font-black text-slate-800/50 z-0 pointer-events-none">
               #{index + 1}
             </div>
@@ -116,7 +116,7 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
                 onShare={() => onShare(post.id)}
                 onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
                 onTagClick={onTagClick}
-                onDelete={currentUser?.role === 'Administrator' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
+                onDelete={currentUser?.role === 'administration' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
               />
             </div>
           </div>

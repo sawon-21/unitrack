@@ -24,6 +24,7 @@ interface DashboardProps {
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
   onDeletePost?: (id: string) => void;
+  onView?: (id: string) => void;
   isLoading?: boolean;
   restoreScrollPosition?: () => void;
 }
@@ -44,11 +45,62 @@ export function Dashboard({
   onStatusClick,
   onCategoryClick,
   onDeletePost,
+  onView,
   isLoading,
   restoreScrollPosition
 }: DashboardProps) {
   const [displayCount, setDisplayCount] = useState(50);
   const observerTarget = useRef<HTMLDivElement>(null);
+
+  const [pulling, setPulling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullStartY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY === 0) {
+      pullStartY.current = e.touches[0].clientY;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (pullStartY.current > 0) {
+      const y = e.touches[0].clientY;
+      const dist = y - pullStartY.current;
+      if (dist > 0 && window.scrollY === 0) {
+        setPulling(true);
+        setPullDistance(Math.min(dist * 0.5, 100)); // cap at 100 with friction
+        if (document.body.style.overscrollBehaviorY !== 'contain') {
+          document.body.style.overscrollBehaviorY = 'contain';
+        }
+      } else {
+        setPulling(false);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance > 60) {
+      setRefreshing(true);
+      // Simulate refresh
+      setTimeout(() => {
+        setRefreshing(false);
+        setPulling(false);
+        setPullDistance(0);
+      }, 1500);
+    } else {
+      setPulling(false);
+      setPullDistance(0);
+    }
+    pullStartY.current = 0;
+    document.body.style.overscrollBehaviorY = '';
+  };
+
+  useEffect(() => {
+    return () => {
+      document.body.style.overscrollBehaviorY = '';
+    };
+  }, []);
 
   const scrollDirection = useScrollDirection();
   const { pinnedPosts, regularPosts, uniquePosts, stats } = React.useMemo(() => {
@@ -113,14 +165,6 @@ export function Dashboard({
   // Duplicate posts for infinite scroll effect
   const infinitePinnedPosts = [...pinnedPosts, ...pinnedPosts];
 
-  const statusBgColors: Record<string, string> = {
-    'New': 'bg-teal-500/10 border-teal-500/30',
-    'Acknowledged': 'bg-yellow-500/10 border-yellow-500/30',
-    'Investigating': 'bg-orange-500/10 border-orange-500/30',
-    'Dev In-Progress': 'bg-purple-500/10 border-purple-500/30',
-    'Resolved': 'bg-emerald-500/10 border-emerald-500/30',
-    'Reopened': 'bg-blue-500/10 border-blue-500/30',
-  };
 
   return (
     <motion.div 
@@ -130,8 +174,36 @@ export function Dashboard({
       onAnimationComplete={() => {
         if (restoreScrollPosition) restoreScrollPosition();
       }}
-      className="pb-20"
+      className="pb-20 relative"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
+      {/* Pull to refresh indicator */}
+      {(pulling || refreshing) && (
+        <div 
+          className="absolute left-0 right-0 flex justify-center z-50 pointer-events-none"
+          style={{ 
+            top: '80px',
+            transform: `translateY(${refreshing ? 20 : pullDistance - 40}px)`,
+            opacity: refreshing ? 1 : Math.min(pullDistance / 60, 1),
+            transition: refreshing ? 'transform 0.3s ease-out' : 'none'
+          }}
+        >
+          <div className="bg-slate-900 border border-slate-700 rounded-full p-2 shadow-lg flex items-center justify-center">
+            <svg 
+              className={cn("w-6 h-6 text-sky-400", refreshing && "animate-spin")} 
+              fill="none" 
+              viewBox="0 0 24 24" 
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </div>
+        </div>
+      )}
+
+      {/* Header and Stats */}
       <div className="px-4 py-3 pb-0">
         <div className="bg-[#0A0F1E] border border-slate-800/40 rounded-2xl py-3 px-4 flex justify-between items-center shadow-2xl">
           <div 
@@ -184,8 +256,11 @@ export function Dashboard({
                       <Avatar user={users[post.userId]} username={users[post.userId]?.username} className="w-6 h-6 text-[10px]" />
                       <div className="flex items-center gap-1 min-w-0">
                         <span className="text-sm font-semibold text-slate-200 truncate">@{users[post.userId]?.username}</span>
-                        {(users[post.userId]?.role === 'Administrator' || users[post.userId]?.role === 'Faculty') && (
+                        {users[post.userId]?.role === 'administration' && (
                           <BadgeCheck className="w-3.5 h-3.5 fill-[#1877F2] text-white stroke-[1.5px] mb-0.5 shrink-0" />
+                        )}
+                        {users[post.userId]?.role === 'teacher' && (
+                          <BadgeCheck className="w-3.5 h-3.5 fill-green-500 text-white stroke-[1.5px] mb-0.5 shrink-0" />
                         )}
                       </div>
                     </div>
@@ -211,13 +286,13 @@ export function Dashboard({
               </>
             ) : (
               <>
-                {regularPosts.slice(0, displayCount).map(post => (
+                {regularPosts.slice(0, displayCount).map((post, index) => (
                   <PostCard 
-                    key={post.id} 
+                    key={`${post.id}-${index}`} 
                     post={post} 
                     author={users[post.userId]} 
                     currentUser={currentUser}
-                    customBgClass={activeTab === 'track' ? statusBgColors[post.status] : undefined}
+                    
                     onClick={() => onPostClick(post.id)} 
                     onLike={() => onLike(post.id)}
                     onDislike={() => onDislike(post.id)}
@@ -227,7 +302,15 @@ export function Dashboard({
                     onTagClick={onTagClick}
                     onStatusClick={onStatusClick}
                     onCategoryClick={onCategoryClick}
-                    onDelete={currentUser?.role === 'Administrator' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
+                    onView={() => onView && onView(post.id)}
+                    onDelete={currentUser?.role === 'administration' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
+                    onCommentClick={() => {
+                      onPostClick(post.id);
+                      setTimeout(() => {
+                        const el = document.getElementById('comments');
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }, 100);
+                    }}
                   />
                 ))}
                 {posts.length === 0 && !isLoading && (

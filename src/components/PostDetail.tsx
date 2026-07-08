@@ -124,7 +124,7 @@ export function PostDetail({
   const parentComments = comments.filter(c => !c.replyToCommentId);
   const getReplies = (parentId: string) => comments.filter(c => c.replyToCommentId === parentId);
 
-  const renderComment = (comment: Comment, isReply = false, depth = 0) => {
+  const renderComment = (comment: Comment, isReply = false, depth = 0, index = 0) => {
     const commentAuthor = users[comment.userId];
     const cHandle = commentAuthor?.username || 'user';
     const replies = getReplies(comment.id);
@@ -133,13 +133,16 @@ export function PostDetail({
     const isCommentDisliked = currentUser ? comment.dislikedBy?.includes(currentUser.id) : false;
 
     return (
-      <div id={`comment-${comment.id}`} key={comment.id} className={cn("flex gap-3 transition-colors duration-1000", isReply ? "mt-3 pl-3 border-l-2 border-slate-800" : "border-b border-slate-800 p-4")}>
+      <div id={`comment-${comment.id}`} key={`${comment.id}-${index}`} className={cn("flex gap-3 transition-colors duration-1000", isReply ? "mt-3 pl-3 border-l-2 border-slate-800" : "border-b border-slate-800 p-4")}>
         {!isReply && <Avatar user={commentAuthor} username={cHandle} className="w-8 h-8 text-xs shrink-0" />}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-base truncate">
             <span className="font-bold text-slate-300 truncate hover:text-slate-200 transition-colors">@{cHandle}</span>
-            {(commentAuthor?.role === 'Administrator' || commentAuthor?.role === 'Faculty') && (
+            {(commentAuthor?.role === 'administration') && (
               <BadgeCheck className="w-5 h-5 fill-[#1877F2] text-white stroke-[1.5px]" />
+            )}
+            {(commentAuthor?.role === 'teacher') && (
+              <BadgeCheck className="w-5 h-5 fill-green-500 text-white stroke-[1.5px]" />
             )}
             <span className="text-slate-500">·</span>
             <span className="text-slate-500 shrink-0 hover:text-slate-400 transition-colors">
@@ -224,7 +227,7 @@ export function PostDetail({
           
           {replies.length > 0 && (
             <div className={cn("mt-2 border-slate-800", depth < 3 ? "border-l-2 pl-4" : "pl-1")}>
-              {replies.map(reply => renderComment(reply, true, depth + 1))}
+              {replies.map((reply, i) => renderComment(reply, true, depth + 1, i))}
             </div>
           )}
         </div>
@@ -244,7 +247,7 @@ export function PostDetail({
           </button>
           <h1 className="text-xl font-bold text-slate-100">Post</h1>
         </div>
-        {onDelete && currentUser?.role === 'Administrator' && (
+        {onDelete && currentUser?.role === 'administration' && (
           <button onClick={() => { if(confirm("Delete post?")) onDelete(); }} className="p-2 -mr-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors shrink-0">
             <Trash2 className="w-5 h-5" />
           </button>
@@ -269,8 +272,11 @@ export function PostDetail({
             <Avatar user={isAnonymous ? undefined : author} username={authorHandle} className="w-10 h-10 text-sm" />
             <div className="flex items-center gap-1.5">
               <h2 className="font-bold text-slate-400 text-base hover:text-slate-300 transition-colors cursor-pointer">@{authorHandle}</h2>
-              {!isAnonymous && (author?.role === 'Administrator' || author?.role === 'Faculty') && (
+              {!isAnonymous && author?.role === 'administration' && (
                 <BadgeCheck className="w-5 h-5 fill-[#1877F2] text-white stroke-[1.5px]" />
+              )}
+              {!isAnonymous && author?.role === 'teacher' && (
+                <BadgeCheck className="w-5 h-5 fill-green-500 text-white stroke-[1.5px]" />
               )}
             </div>
           </div>
@@ -332,9 +338,9 @@ export function PostDetail({
 
           {post.tags && post.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-4">
-              {post.tags.map(tag => (
+              {post.tags.map((tag, index) => (
                 <span 
-                  key={tag} 
+                  key={`${tag}-${index}`} 
                   className="text-[10px] text-sky-400 bg-sky-400/10 hover:bg-sky-400/20 px-2 py-0.5 rounded-full cursor-pointer transition-colors font-medium"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -351,7 +357,7 @@ export function PostDetail({
             <div className={cn("mb-4 grid gap-2", images.length > 1 ? "grid-cols-2" : "grid-cols-1")}>
               {images.slice(0, 2).map((url, index) => (
                 <div 
-                  key={url}
+                  key={`${url}-${index}`}
                   className={cn("rounded-xl overflow-hidden border border-slate-800 bg-slate-950 cursor-zoom-in relative", images.length > 1 ? "aspect-[4/5] sm:aspect-square" : "max-h-[600px]")}
                   onClick={() => {
                     setZoomedImageIndex(index);
@@ -500,7 +506,7 @@ export function PostDetail({
               )}
             </div>
 
-            {(currentUser?.role === 'Administrator' || currentUser?.role === 'Faculty') && onUpdateStatus && (
+            {(currentUser?.role === 'administration' || currentUser?.role === 'teacher') && onUpdateStatus && (
               <div className="mt-4 pt-4 border-t border-slate-800">
                 {!isUpdatingStatus ? (
                   <button 
@@ -518,7 +524,7 @@ export function PostDetail({
                   <div className="space-y-3 bg-slate-950 p-3 rounded-lg border border-slate-800">
                     <div className="flex justify-between items-center bg-slate-900/50 p-1 rounded-md mb-2 border border-slate-800 flex-wrap gap-1">
                        {['New', 'Acknowledged', 'Investigating', 'Dev In-Progress', 'Resolved'].map(s => {
-                         const disabled = currentUser?.role === 'Faculty' && (s === 'Dev In-Progress' || s === 'Resolved');
+                         const disabled = currentUser?.role === 'teacher' && (s === 'Dev In-Progress' || s === 'Resolved');
                          if (disabled && newStatus !== s) return null; // Or render as disabled, hiding might be cleaner. Let's render disabled
                          return (
                            <button
@@ -595,8 +601,22 @@ export function PostDetail({
             <span className="font-bold text-slate-400">{post.views || 0}</span> Views
           </div>
 
+          <button
+            onClick={onShare}
+            className="w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-400 text-white py-3 px-4 rounded-xl font-bold transition-colors mb-4 shadow-lg shadow-sky-500/20"
+          >
+            <Share className="w-5 h-5" />
+            Share Problem
+          </button>
+
           <div className="flex items-center justify-around py-3 border-t border-b border-slate-800 text-slate-500">
-            <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
+            <button 
+              onClick={() => {
+                const el = document.getElementById('comments');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+              className="flex items-center gap-2 hover:text-sky-400 group transition-colors"
+            >
               <div className="p-2 rounded-full group-hover:bg-sky-500/10"><MessageSquare className="w-5 h-5" /></div>
               <span className="text-sm">{post.commentCount}</span>
             </button>
@@ -624,20 +644,14 @@ export function PostDetail({
             <button className="flex items-center gap-2 hover:text-sky-400 group transition-colors">
               <div className="p-2 rounded-full group-hover:bg-sky-500/10"><BarChart2 className="w-5 h-5" /></div>
             </button>
-            <button 
-              onClick={onShare}
-              className="flex items-center gap-2 hover:text-sky-400 group transition-colors"
-            >
-              <div className="p-2 rounded-full group-hover:bg-sky-500/10"><Share className="w-5 h-5" /></div>
-            </button>
           </div>
         </div>
         
         {/* Subtle separator between post and comments */}
-        <div className="h-3 w-full bg-[#05080F] border-b border-slate-800/50" />
+        <div id="comments" className="h-3 w-full bg-[#05080F] border-b border-slate-800/50" />
 
         <div className="flex flex-col">
-          {parentComments.map(comment => renderComment(comment))}
+          {parentComments.map((comment, index) => renderComment(comment, false, 0, index))}
           {comments.length === 0 && (
             <div className="text-center text-slate-500 py-10">
               No replies yet.
