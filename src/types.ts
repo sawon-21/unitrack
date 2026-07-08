@@ -1,14 +1,16 @@
-export type Role = 'Administrator' | 'Faculty' | 'Student';
+export type Role = 'user' | 'student' | 'teacher' | 'administration';
 export type Status = 'New' | 'Acknowledged' | 'Investigating' | 'Dev In-Progress' | 'Resolved' | 'Reopened';
 export type Category = 'Academics' | 'Campus Issues' | 'Suggestions' | 'Lost' | 'Found' | 'Opportunities';
 
 export interface User {
   id: string;
   username: string;
+  email?: string;
   profilePicUrl?: string;
   role: Role;
   batch?: string;
   usernameChanged?: boolean;
+  appliedForRole?: 'student' | 'teacher' | null;
 }
 
 export interface StatusUpdate {

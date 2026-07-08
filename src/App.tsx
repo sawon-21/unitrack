@@ -31,6 +31,8 @@ import { useScrollDirection } from './hooks/useScrollDirection';
 import { compressImage } from './utils/imageUtils';
 import { uploadToCloudinary } from './utils/cloudinaryUtils';
 
+import { AdminPanel } from './components/AdminPanel';
+
 type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail' | 'create';
 
 export default function App() {
@@ -41,6 +43,7 @@ export default function App() {
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [initialSearchQuery, setInitialSearchQuery] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'my' | 'track'>('all');
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
@@ -194,7 +197,7 @@ export default function App() {
               const userData: User = {
                 id: user.uid,
                 username: user.email?.split('@')[0] || `user_${user.uid.slice(0, 5)}`,
-                role: 'Student',
+                role: 'user',
                 usernameChanged: false
               };
               try {
@@ -204,8 +207,10 @@ export default function App() {
               }
             } else {
               // User doc was deleted while they were logged in -> secure session expiration
-              auth.signOut();
               setCurrentUser(null);
+              setTimeout(() => {
+                auth.signOut();
+              }, 100);
               localStorage.removeItem('cached_user');
               alert('Your account has been deactivated. You have been signed out.');
             }
@@ -230,6 +235,35 @@ export default function App() {
       if (snapshotUnsubscribe) snapshotUnsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!db || !isAuthReady) return;
+
+    if (!activeUser) {
+        setUsers({});
+        return;
+    }
+
+    const usersQuery = query(collection(db, 'users'), limit(500));
+    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
+      const usersData: Record<string, User> = {};
+      snapshot.docs.forEach(doc => {
+        usersData[doc.id] = { id: doc.id, ...doc.data() } as User;
+      });
+      setUsers(usersData);
+      try {
+        localStorage.setItem('cached_users', JSON.stringify(usersData));
+      } catch (e) {
+        console.warn("Failed caching users", e);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
+    });
+
+    return () => {
+      unsubscribeUsers();
+    };
+  }, [db, isAuthReady, activeUser?.id]);
 
   useEffect(() => {
     if (!db) return;
@@ -257,25 +291,8 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, 'posts');
     });
 
-    const usersQuery = query(collection(db, 'users'), limit(500));
-    const unsubscribeUsers = onSnapshot(usersQuery, (snapshot) => {
-      const usersData: Record<string, User> = {};
-      snapshot.docs.forEach(doc => {
-        usersData[doc.id] = { id: doc.id, ...doc.data() } as User;
-      });
-      setUsers(usersData);
-      try {
-        localStorage.setItem('cached_users', JSON.stringify(usersData));
-      } catch (e) {
-        console.warn("Failed caching users", e);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
-    });
-
     return () => {
       unsubscribePosts();
-      unsubscribeUsers();
     };
   }, []);
 
@@ -838,19 +855,11 @@ export default function App() {
     }
   };
 
-  const handlePostClick = async (id: string) => {
-    if (currentScreen === 'dashboard' || currentScreen === 'search') {
-      scrollPositionRef.current = window.scrollY;
-    }
-    setSelectedPostId(id);
-    setCurrentScreen('detail');
-    window.location.hash = `post-${id}`;
-    
+  const handlePostView = async (id: string) => {
     if (!db) return;
     const post = posts.find(p => p.id === id);
     if (!post) return;
     
-    // Increment views
     const actualOriginalId = post.originalPostId || post.id;
     const postRef = doc(db, 'posts', actualOriginalId);
     
@@ -864,7 +873,6 @@ export default function App() {
           });
         }
       } else {
-        // For unauthenticated users, check localStorage
         const viewedPosts = JSON.parse(localStorage.getItem('viewedPosts') || '[]');
         if (!viewedPosts.includes(actualOriginalId)) {
           viewedPosts.push(actualOriginalId);
@@ -873,12 +881,21 @@ export default function App() {
         }
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `posts/${actualOriginalId}`);
+      console.warn('View update failed', error);
     }
   };
 
+  const handlePostClick = async (id: string) => {
+    if (currentScreen === 'dashboard' || currentScreen === 'search') {
+      scrollPositionRef.current = window.scrollY;
+    }
+    setSelectedPostId(id);
+    setCurrentScreen('detail');
+    window.location.hash = `post-${id}`;
+  };
+
   const handleDeletePost = async (id: string) => {
-    if (!currentUser || currentUser.role !== 'Administrator' || !db) return;
+    if (!currentUser || currentUser.role !== 'administration' || !db) return;
     
     // Optimistic UI update
     setPosts(prev => prev.filter(p => p.id !== id));
@@ -896,7 +913,7 @@ export default function App() {
   };
 
   const handleUpdateStatus = async (status: Status, message: string) => {
-    if (!currentUser || (currentUser.role !== 'Administrator' && currentUser.role !== 'Faculty') || !selectedPostId || !db) return;
+    if (!currentUser || (currentUser.role !== 'administration' && currentUser.role !== 'teacher') || !selectedPostId || !db) return;
     
     const post = posts.find(p => p.id === selectedPostId);
     if (!post) return;
@@ -992,6 +1009,10 @@ export default function App() {
 
   const handleNotificationClick = async (id: string, postId?: string, commentId?: string) => {
     if (!db) return;
+    
+    // Optimistic UI update
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    
     const notifRef = doc(db, 'notifications', id);
     try {
       await updateDoc(notifRef, { read: true });
@@ -1101,7 +1122,7 @@ export default function App() {
         )}
         <AnimatePresence mode="wait">
           {currentScreen === 'dashboard' && (
-            <div className="pt-20 pb-20">
+            <div className="pt-20 pb-20" key="dashboard-wrapper">
               <Dashboard 
                 key="dashboard"
                 posts={displayedPosts} 
@@ -1109,6 +1130,7 @@ export default function App() {
                 currentUser={activeUser || undefined}
                 activeTab={activeTab}
                 onPostClick={handlePostClick} 
+                onView={handlePostView}
                 onOpenSubmit={() => {
                   if (!activeUser) handleSignIn();
                   else setCurrentScreen('create');
@@ -1131,13 +1153,15 @@ export default function App() {
           )}
           
           {currentScreen === 'search' && (
-            <SearchScreen 
-              key="search"
+            <div key="search-wrapper">
+              <SearchScreen 
+                key="search"
               posts={posts} 
               users={users} 
               currentUser={activeUser || undefined}
               initialQuery={initialSearchQuery}
               onPostClick={handlePostClick} 
+              onView={handlePostView}
               onLike={(id) => handleLike(id, false)}
               onDislike={(id) => handleDislike(id, false)}
               onRepost={handleRepost}
@@ -1151,6 +1175,7 @@ export default function App() {
                 window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
               }}
             />
+            </div>
           )}
 
           {currentScreen === 'analytics' && (
@@ -1188,12 +1213,13 @@ export default function App() {
                 currentUser={activeUser}
                 users={users}
                 onLogout={() => setShowLogoutConfirm(true)}
+                onShowAdminPanel={() => setShowAdminPanel(true)}
                 onGenerateDemoPost={async () => {
                   if (!db || !activeUser) return;
                   try {
                     const newPostId = doc(collection(db, 'posts')).id;
                     const now = Date.now();
-                    const adminUser = Object.values(users).find(u => u.role === 'Administrator') || activeUser;
+                    const adminUser = Object.values(users).find(u => u.role === 'administration') || activeUser;
                     const demoPost: Post = {
                       id: newPostId,
                       title: "Demo Post: Network Outage in Building A",
@@ -1309,7 +1335,10 @@ export default function App() {
           title="Log Out"
           message="Are you sure you want to log out?"
           onConfirm={() => {
-            logOut();
+            setCurrentUser(null);
+            setTimeout(() => {
+              logOut();
+            }, 100);
             setShowLogoutConfirm(false);
           }}
           onCancel={() => setShowLogoutConfirm(false)}
@@ -1321,6 +1350,13 @@ export default function App() {
           title="Reposted by"
           users={repostersList.map(username => (Object.values(users) as User[]).find(u => u.username === username)).filter(Boolean) as User[]}
           onClose={() => setRepostersList(null)}
+        />
+      )}
+
+      {showAdminPanel && activeUser?.role === 'administration' && (
+        <AdminPanel
+          users={Object.values(users)}
+          onClose={() => setShowAdminPanel(false)}
         />
       )}
 
