@@ -15,10 +15,9 @@ interface AnalyticsDashboardProps {
   onShare: (id: string) => void;
   onRepostersClick: (usernames: string[]) => void;
   onTagClick?: (tag: string) => void;
-  onDeletePost?: (id: string) => void;
 }
 
-export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick, onDeletePost }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onLike, onDislike, onRepost, onShare, onRepostersClick, onTagClick }: AnalyticsDashboardProps) {
   const scrollDirection = useScrollDirection();
   const [sortBy, setSortBy] = React.useState<'engagement' | 'newest' | 'oldest' | 'likes' | 'comments' | 'views'>('engagement');
 
@@ -116,7 +115,6 @@ export function AnalyticsDashboard({ posts, users, currentUser, onPostClick, onL
                 onShare={() => onShare(post.id)}
                 onRepostersClick={post.repostedBy ? () => onRepostersClick(post.repostedBy!) : undefined}
                 onTagClick={onTagClick}
-                onDelete={currentUser?.role === 'administration' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
               />
             </div>
           </div>

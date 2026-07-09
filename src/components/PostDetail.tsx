@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Send, Activity, Reply, X, Pin, PinOff, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck, Trash2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Activity, Reply, X, ThumbsUp, ThumbsDown, Repeat2, Share, BarChart2, BadgeCheck } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Post, User, Comment, Status } from '../types';
 import { cn } from '../utils';
@@ -30,31 +30,29 @@ interface PostDetailProps {
   onStatusClick?: (status: string) => void;
   onUpdateStatus?: (status: Status, message: string) => void;
   onCategoryClick?: (category: string) => void;
-  onDelete?: () => void;
 }
 
-export function PostDetail({ 
-  post, 
-  author, 
-  comments, 
-  users, 
-  currentUser, 
-  highlightCommentId, 
-  onBack, 
-  onAddComment, 
-  onLike, 
-  onDislike, 
-  onCommentLike, 
-  onCommentDislike, 
-  onRepost, 
-  onShare, 
-  onSignIn, 
-  onRepostersClick, 
+export function PostDetail({
+  post,
+  author,
+  comments,
+  users,
+  currentUser,
+  highlightCommentId,
+  onBack,
+  onAddComment,
+  onLike,
+  onDislike,
+  onCommentLike,
+  onCommentDislike,
+  onRepost,
+  onShare,
+  onSignIn,
+  onRepostersClick,
   onTagClick,
   onStatusClick,
   onUpdateStatus,
   onCategoryClick,
-  onDelete
 }: PostDetailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollDirection = useScrollDirection(scrollRef);
@@ -247,11 +245,7 @@ export function PostDetail({
           </button>
           <h1 className="text-xl font-bold text-slate-100">Post</h1>
         </div>
-        {onDelete && currentUser?.role === 'administration' && (
-          <button onClick={() => { if(confirm("Delete post?")) onDelete(); }} className="p-2 -mr-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors shrink-0">
-            <Trash2 className="w-5 h-5" />
-          </button>
-        )}
+
       </header>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto pt-14 pb-32 sm:pb-40">

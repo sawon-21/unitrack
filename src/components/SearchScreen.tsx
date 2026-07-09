@@ -23,7 +23,6 @@ interface SearchScreenProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
-  onDeletePost?: (id: string) => void;
   onView?: (id: string) => void;
   restoreScrollPosition?: () => void;
 }
@@ -42,7 +41,6 @@ export function SearchScreen({
   onTagClick,
   onStatusClick,
   onCategoryClick,
-  onDeletePost,
   onView,
   restoreScrollPosition
 }: SearchScreenProps) {
@@ -314,7 +312,6 @@ export function SearchScreen({
               onStatusClick={onStatusClick}
               onCategoryClick={onCategoryClick}
               onView={() => onView && onView(post.id)}
-              onDelete={currentUser?.role === 'administration' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
               onCommentClick={() => {
                 onPostClick(post.id);
                 setTimeout(() => {
