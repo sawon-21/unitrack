@@ -14,9 +14,11 @@ interface ProfileScreenProps {
   currentUser: User;
   users: Record<string, User>;
   onLogout?: () => void;
+  onGenerateDemoPost?: () => void;
+  onShowAdminPanel?: () => void;
 }
 
-export function ProfileScreen({ currentUser, users, onLogout }: ProfileScreenProps) {
+export function ProfileScreen({ currentUser, users, onLogout, onGenerateDemoPost, onShowAdminPanel }: ProfileScreenProps) {
   const scrollDirection = useScrollDirection();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -174,7 +176,29 @@ export function ProfileScreen({ currentUser, users, onLogout }: ProfileScreenPro
             </div>
           </button>
           
-          <button
+          {currentUser.role === 'administration' && onShowAdminPanel && (
+            <button 
+              onClick={onShowAdminPanel}
+              className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-sky-400"
+            >
+              <div className="flex items-center gap-3">
+                <BadgeCheck className="w-5 h-5" />
+                <span className="font-medium">Manage Users</span>
+              </div>
+            </button>
+          )}
+          {currentUser.role === 'administration' && onGenerateDemoPost && (
+            <button 
+              onClick={onGenerateDemoPost}
+              className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-sky-400"
+            >
+              <div className="flex items-center gap-3">
+                <BadgeCheck className="w-5 h-5" />
+                <span className="font-medium">Generate Demo Post</span>
+              </div>
+            </button>
+          )}
+          <button 
             onClick={onLogout}
             className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-xl hover:bg-slate-800 transition-colors border border-slate-800 text-red-400"
           >

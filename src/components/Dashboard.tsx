@@ -23,6 +23,7 @@ interface DashboardProps {
   onTagClick?: (tag: string) => void;
   onStatusClick?: (status: string) => void;
   onCategoryClick?: (category: string) => void;
+  onDeletePost?: (id: string) => void;
   onView?: (id: string) => void;
   isLoading?: boolean;
   restoreScrollPosition?: () => void;
@@ -43,6 +44,7 @@ export function Dashboard({
   onTagClick,
   onStatusClick,
   onCategoryClick,
+  onDeletePost,
   onView,
   isLoading,
   restoreScrollPosition
@@ -301,6 +303,7 @@ export function Dashboard({
                     onStatusClick={onStatusClick}
                     onCategoryClick={onCategoryClick}
                     onView={() => onView && onView(post.id)}
+                    onDelete={currentUser?.role === 'administration' && onDeletePost ? () => { if(confirm("Delete post?")) onDeletePost(post.id); } : undefined}
                     onCommentClick={() => {
                       onPostClick(post.id);
                       setTimeout(() => {

@@ -21,14 +21,17 @@ import { AuthModal } from './components/AuthModal';
 import { playNotificationSound } from './lib/sound';
 import { Post, Comment, Category, AppNotification, User, Status, StatusUpdate } from './types';
 import { cn } from './utils';
-import { auth, db, logOut } from './firebase';
+import { auth, db, storage, logOut } from './firebase';
 import { offlineService } from './services/offlineService';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, onSnapshot, doc, setDoc, updateDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where, limit } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, updateDoc, deleteDoc, query, orderBy, getDoc, serverTimestamp, increment, arrayUnion, arrayRemove, where, limit } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { handleFirestoreError, OperationType } from './utils/firestoreErrorHandler';
 import { useScrollDirection } from './hooks/useScrollDirection';
 import { compressImage } from './utils/imageUtils';
 import { uploadToCloudinary } from './utils/cloudinaryUtils';
+
+import { AdminPanel } from './components/AdminPanel';
 
 type Screen = 'dashboard' | 'search' | 'analytics' | 'notifications' | 'profile' | 'detail' | 'create';
 
@@ -40,6 +43,7 @@ export default function App() {
   const [highlightCommentId, setHighlightCommentId] = useState<string | null>(null);
   const [initialSearchQuery, setInitialSearchQuery] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'my' | 'track'>('all');
   const [posts, setPosts] = useState<Post[]>(() => {
     try {
@@ -890,6 +894,24 @@ export default function App() {
     window.location.hash = `post-${id}`;
   };
 
+  const handleDeletePost = async (id: string) => {
+    if (!currentUser || currentUser.role !== 'administration' || !db) return;
+    
+    // Optimistic UI update
+    setPosts(prev => prev.filter(p => p.id !== id));
+    if (selectedPostId === id) {
+      setCurrentScreen('dashboard');
+      setSelectedPostId(null);
+    }
+    
+    try {
+      await deleteDoc(doc(db, 'posts', id));
+      toast.success("Post deleted successfully");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `posts/${id}`);
+    }
+  };
+
   const handleUpdateStatus = async (status: Status, message: string) => {
     if (!currentUser || (currentUser.role !== 'administration' && currentUser.role !== 'teacher') || !selectedPostId || !db) return;
     
@@ -1121,6 +1143,7 @@ export default function App() {
                 onTagClick={handleTagClick}
                 onStatusClick={handleStatusClick}
                 onCategoryClick={handleCategoryClick}
+                onDeletePost={handleDeletePost}
                 isLoading={isInitialSync}
                 restoreScrollPosition={() => {
                   window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
@@ -1147,6 +1170,7 @@ export default function App() {
               onTagClick={handleTagClick}
               onStatusClick={handleStatusClick}
               onCategoryClick={handleCategoryClick}
+              onDeletePost={handleDeletePost}
               restoreScrollPosition={() => {
                 window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
               }}
@@ -1167,6 +1191,7 @@ export default function App() {
                 onShare={handleShare}
                 onRepostersClick={handleRepostersClick}
                 onTagClick={handleTagClick}
+                onDeletePost={handleDeletePost}
               />
             </motion.div>
           )}
@@ -1178,6 +1203,71 @@ export default function App() {
                 users={users} 
                 onNotificationClick={handleNotificationClick}
                 onMarkAllRead={handleMarkAllRead}
+              />
+            </motion.div>
+          )}
+
+          {currentScreen === 'profile' && activeUser && (
+            <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+              <ProfileScreen 
+                currentUser={activeUser}
+                users={users}
+                onLogout={() => setShowLogoutConfirm(true)}
+                onShowAdminPanel={() => setShowAdminPanel(true)}
+                onGenerateDemoPost={async () => {
+                  if (!db || !activeUser) return;
+                  try {
+                    const newPostId = doc(collection(db, 'posts')).id;
+                    const now = Date.now();
+                    const adminUser = Object.values(users).find(u => u.role === 'administration') || activeUser;
+                    const demoPost: Post = {
+                      id: newPostId,
+                      title: "Demo Post: Network Outage in Building A",
+                      description: "We are currently experiencing a network outage in Building A. The IT team is investigating the issue. Please use the backup Wi-Fi network in the meantime.",
+                      category: "Campus Issues" as any,
+                      createdAt: new Date(now - 86400000).toISOString(),
+                      userId: activeUser.id,
+                      isAnonymous: false,
+                      status: "Dev In-Progress",
+                      statusMessage: "The network switch has been replaced. We are currently applying configurations before bringing it back online.",
+                      statusHistory: [
+                         {
+                           status: 'Acknowledged',
+                           message: 'We have received reports of the outage and are looking into it.',
+                           updaterId: adminUser.id,
+                           updaterRole: adminUser.role,
+                           updatedAt: new Date(now - 70000000).toISOString()
+                         },
+                         {
+                           status: 'Investigating',
+                           message: 'The IT team has identified a faulty switch on the 3rd floor. Replacement parts are being sourced.',
+                           updaterId: adminUser.id,
+                           updaterRole: adminUser.role,
+                           updatedAt: new Date(now - 50000000).toISOString()
+                         },
+                         {
+                           status: 'Dev In-Progress',
+                           message: "The network switch has been replaced. We are currently applying configurations before bringing it back online.",
+                           updaterId: adminUser.id,
+                           updaterRole: adminUser.role,
+                           updatedAt: new Date(now - 10000000).toISOString()
+                         }
+                      ],
+                      commentCount: 0,
+                      likes: 5,
+                      dislikes: 0,
+                      reposts: 2,
+                      views: 42,
+                      tags: ["network", "outage", "urgent"],
+                    };
+                    await setDoc(doc(db, 'posts', newPostId), demoPost);
+                    toast.success("Demo post generated successfully!");
+                    setCurrentScreen('dashboard');
+                  } catch (error) {
+                    console.error("Error generating demo post:", error);
+                    toast.error("Failed to generate demo post.");
+                  }
+                }}
               />
             </motion.div>
           )}
@@ -1237,16 +1327,6 @@ export default function App() {
               />
             </motion.div>
           )}
-
-          {currentScreen === 'profile' && activeUser && (
-            <motion.div key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
-              <ProfileScreen
-                currentUser={activeUser}
-                users={users}
-                onLogout={() => setShowLogoutConfirm(true)}
-              />
-            </motion.div>
-          )}
         </AnimatePresence>
       </main>
 
@@ -1270,6 +1350,13 @@ export default function App() {
           title="Reposted by"
           users={repostersList.map(username => (Object.values(users) as User[]).find(u => u.username === username)).filter(Boolean) as User[]}
           onClose={() => setRepostersList(null)}
+        />
+      )}
+
+      {showAdminPanel && activeUser?.role === 'administration' && (
+        <AdminPanel
+          users={Object.values(users)}
+          onClose={() => setShowAdminPanel(false)}
         />
       )}
 
