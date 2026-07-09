@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && userId != null && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'administration') ||
+          (request.auth.token.email == "info.vaijan@gmail.com" && request.auth.token.email_verified == true)); // Default admin
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Only authenticated users can see profiles
+      allow read: if isAuthenticated();
+      // Only the user themselves can create their profile. Role must be 'user' by default.
+      allow create: if isAuthenticated() && isOwner(userId) && 
+                      request.resource.data.get('role', 'user') == 'user';
+      allow update: if isAuthenticated() && (
+                      (isOwner(userId) && 
+                       // Prevent self-role escalation unless an admin is doing it
+                       request.resource.data.get('role', resource.data.role) == resource.data.role) 
+                      || isAdmin()
+                    );
+      allow delete: if isAdmin();
+    }
+    
+    match /posts/{postId} {
+      allow read: if true; // Public feed
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.get('userId', null)) &&
+                      request.resource.data.keys().hasAll(['title', 'description', 'category', 'userId', 'createdAt', 'status']);
+      allow update: if isAuthenticated() && (
+        // Owner can update their own post (but not sensitive fields)
+        (isOwner(resource.data.get('userId', null)) && 
+         request.resource.data.get('userId', null) == resource.data.userId &&
+         request.resource.data.get('createdAt', null) == resource.data.createdAt) ||
+        // Anyone can update engagement counts (likes, views, etc.)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'reposts', 'views', 'commentCount', 'likedBy', 'dislikedBy', 'repostedBy', 'viewedBy', 'lastRepostedAt'])) ||
+        isAdmin()
+      );
+      allow delete: if resource != null && (isOwner(resource.data.get('userId', null)) || isAdmin());
+    }
+    
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                      isOwner(request.resource.data.get('userId', null)) &&
+                      request.resource.data.keys().hasAll(['postId', 'userId', 'text', 'createdAt']);
+      allow update: if isAuthenticated() && (
+        (isOwner(resource.data.get('userId', null)) && 
+         request.resource.data.get('userId', null) == resource.data.userId &&
+         request.resource.data.get('postId', null) == resource.data.postId) ||
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'dislikes', 'likedBy', 'dislikedBy'])) ||
+        isAdmin()
+      );
+      allow delete: if resource != null && (
+        isOwner(resource.data.get('userId', null)) || 
+        (exists(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))) && 
+         isOwner(get(/databases/$(database)/documents/posts/$(resource.data.get('postId', ''))).data.get('userId', null))) || 
+        isAdmin()
+      );
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.get('userId', null));
+      allow create: if isAuthenticated();
+      allow update: if isOwner(resource.data.get('userId', null)) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(resource.data.get('userId', null));
+    }
+  }
+}

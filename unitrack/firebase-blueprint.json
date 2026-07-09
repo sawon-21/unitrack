@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "profilePicUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["Student", "Admin"] },
+        "batch": { "type": "string" }
+      },
+      "required": ["id", "username", "role"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "A post created by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string", "enum": ["Course Help", "Announcement"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" },
+        "isAnonymous": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["New", "Acknowledged", "Investigating", "Dev In-Progress", "Resolved", "Reopened"] },
+        "commentCount": { "type": "number" },
+        "isPinned": { "type": "boolean" },
+        "likes": { "type": "number" },
+        "dislikes": { "type": "number" },
+        "reposts": { "type": "number" },
+        "views": { "type": "number" },
+        "originalPostId": { "type": "string" },
+        "repostedBy": { "type": "string" },
+        "isLiked": { "type": "boolean" },
+        "isDisliked": { "type": "boolean" },
+        "isReposted": { "type": "boolean" }
+      },
+      "required": ["id", "title", "description", "category", "createdAt", "userId", "isAnonymous", "status", "commentCount", "likes", "dislikes", "reposts", "views"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment on a post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "replyToCommentId": { "type": "string" },
+        "likes": { "type": "number" },
+        "dislikes": { "type": "number" },
+        "isLiked": { "type": "boolean" },
+        "isDisliked": { "type": "boolean" }
+      },
+      "required": ["id", "postId", "userId", "text", "createdAt", "likes", "dislikes"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A notification for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["reaction", "comment", "mention"] },
+        "message": { "type": "string" },
+        "postId": { "type": "string" },
+        "commentId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "type", "message", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Users collection"
+    },
+    "/posts/{postId}": {
+      "schema": { "$ref": "#/entities/Post" },
+      "description": "Posts collection"
+    },
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Comments collection"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "Notifications collection"
+    }
+  }
+}
